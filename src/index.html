@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="./logo.svg" />
+    <title>Sipps</title>
+  </head>
+  <body>
+    <h1>Create a Snippet</h1>
+
+    <form id="snippetForm">
+      <div>
+        <label for="name">Name:</label><br>
+        <input type="text" id="name" name="name" required>
+      </div>
+
+      <div>
+        <label for="language">Language:</label><br>
+        <input type="text" id="language" name="language" required>
+      </div>
+
+      <div>
+        <label for="content">Content:</label><br>
+        <textarea id="content" name="content" rows="10" cols="50" required></textarea>
+      </div>
+
+      <button type="submit">Create Snippet</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+      document.getElementById('snippetForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const data = {
+          name: formData.get('name'),
+          language: formData.get('language'),
+          content: formData.get('content')
+        };
+
+        try {
+          const response = await fetch('/api/snippets', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            document.getElementById('result').innerHTML = '<p>Snippet created successfully! ID: ' + result.id + ' | Short ID: ' + result.shortId + '</p>';
+            e.target.reset();
+          } else {
+            document.getElementById('result').innerHTML = '<p>Error: ' + result.error + '</p>';
+          }
+        } catch (error) {
+          document.getElementById('result').innerHTML = '<p>Error: ' + error.message + '</p>';
+        }
+      });
+    </script>
+  </body>
+</html>

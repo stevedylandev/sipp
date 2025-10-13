@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="./logo.svg" />
+    <title>View Snippet - Sipps</title>
+  </head>
+  <body>
+    <h1 id="snippetName">Loading...</h1>
+
+    <div id="snippetInfo">
+      <p><strong>Language:</strong> <span id="language"></span></p>
+      <p><strong>Short ID:</strong> <span id="shortId"></span></p>
+    </div>
+
+    <div>
+      <h3>Content:</h3>
+      <pre id="content"></pre>
+    </div>
+
+    <div id="error" style="color: red;"></div>
+
+    <div>
+      <a href="/">Create a new snippet</a>
+    </div>
+
+    <script>
+      // Get the shortId from the URL path
+      const pathParts = window.location.pathname.split('/');
+      const shortId = pathParts[pathParts.length - 1];
+
+      async function loadSnippet() {
+        try {
+          const response = await fetch(`/api/snippets/${shortId}`);
+
+          if (!response.ok) {
+            throw new Error('Snippet not found');
+          }
+
+          const snippet = await response.json();
+
+          // Update the page with snippet data
+          document.getElementById('snippetName').textContent = snippet.name;
+          document.getElementById('language').textContent = snippet.language;
+          document.getElementById('shortId').textContent = snippet.shortId;
+          document.getElementById('content').textContent = snippet.content;
+          document.title = `${snippet.name} - Sipps`;
+        } catch (error) {
+          document.getElementById('error').textContent = 'Error: ' + error.message;
+          document.getElementById('snippetName').textContent = 'Snippet not found';
+        }
+      }
+
+      loadSnippet();
+    </script>
+  </body>
+</html>

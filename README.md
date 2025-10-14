@@ -1,4 +1,4 @@
-# sipps
+# Sipp
 
 ![cover](https://sipp.so/assets/og.png)
 

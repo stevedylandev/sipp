@@ -1,5 +1,6 @@
 import { serve } from "bun";
 import index from "./index.html";
+import about from "./about.html";
 import snippet from "./snippet.html";
 import { initDb, createSnippet, getSnippetByShortId } from "./db";
 
@@ -10,7 +11,12 @@ const server = serve({
 	routes: {
 		// Home page - create snippet form
 		"/": index,
+		// About page
+		"/about": about,
+		// View snippet by shortId - this should be last to not override other routes
+		"/s/:shortId": snippet,
 
+		// Create a snippet
 		"/api/snippets": {
 			async POST(req) {
 				try {
@@ -39,7 +45,7 @@ const server = serve({
 				}
 			},
 		},
-
+		// Fetch a snippet
 		"/api/snippets/:shortId": {
 			async GET(req) {
 				try {
@@ -62,9 +68,6 @@ const server = serve({
 				}
 			},
 		},
-
-		// View snippet by shortId - this should be last to not override other routes
-		"/s/:shortId": snippet,
 	},
 
 	development: process.env.NODE_ENV !== "production" && {

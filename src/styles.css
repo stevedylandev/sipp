@@ -1,24 +1,16 @@
-@font-face {
-	font-family: "Commit Mono";
-	src: url("./assets/fonts/CommitMono-400-Regular.otf") format("opentype");
-	font-weight: 400;
-	font-style: normal;
-}
-
-@font-face {
-	font-family: "Commit Mono";
-	src: url("./assets/fonts/CommitMono-700-Regular.otf") format("opentype");
-	font-weight: 700;
-	font-style: normal;
-}
-
 * {
 	padding: 0;
 	margin: 0;
 	box-sizing: border-box;
 	background: #121113;
 	color: #ffffff;
-	font-family: "Commit Mono", monospace;
+	font-family: "Commit Mono", monospace, sans-serif;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+	display: none;
 }
 
 body {
@@ -26,7 +18,7 @@ body {
 	flex-direction: column;
 	justify-content: start;
 	align-items: start;
-	gap: 2rem;
+	gap: 1.5rem;
 	min-height: 100vh;
 	max-width: 700px;
 	margin: auto;
@@ -52,6 +44,20 @@ body {
 	padding: 4px;
 }
 
+.links {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+	font-size: 12px;
+}
+
+.about {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	font-size: 14px;
+}
+
 textarea {
 	width: 100%;
 	min-height: 400px;
@@ -71,4 +77,18 @@ button {
 		padding: 1rem;
 		gap: 1rem;
 	}
+}
+
+@font-face {
+	font-family: "Commit Mono";
+	src: url("./assets/fonts/CommitMono-400-Regular.otf") format("opentype");
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: "Commit Mono";
+	src: url("./assets/fonts/CommitMono-700-Regular.otf") format("opentype");
+	font-weight: 700;
+	font-style: normal;
 }

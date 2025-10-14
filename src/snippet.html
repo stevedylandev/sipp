@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>View Snippet - Sipps</title>
+  </head>
+  <body>
+    <a href="/" class="header">
+      <h1>SIPP</h1>
+      <h3>Minimal Code Sharing</h3>
+    </a>
+
+    <form id="snippetForm">
+        <label id="snippetName">Filename</label>
+        <textarea id="content" name="content" rows="10" cols="50" readonly></textarea>
+      <div class="button-group">
+        <button type="button" id="copyLinkBtn" data-original-text="Copy Link">Copy Link</button>
+        <button type="button" id="copyContentBtn" data-original-text="Copy Content">Copy Content</button>
+        <button type="button" id="createNewBtn">Create New Snippet</button>
+      </div>
+    </form>
+
+    <div id="result"></div>
+    <div id="error" style="color: red;"></div>
+
+    <script>
+      // Get the shortId from the URL path
+      const pathParts = window.location.pathname.split('/');
+      const shortId = pathParts[pathParts.length - 1];
+
+      async function loadSnippet() {
+        try {
+          const response = await fetch(`/api/snippets/${shortId}`);
+
+          if (!response.ok) {
+            throw new Error('Snippet not found');
+          }
+
+          const snippet = await response.json();
+
+          // Update the page with snippet data
+          document.getElementById('snippetName').textContent = snippet.name;
+          document.getElementById('content').textContent = snippet.content;
+          document.title = `${snippet.name} - Sipps`;
+        } catch (error) {
+          document.getElementById('error').textContent = 'Error: ' + error.message;
+          document.getElementById('snippetName').textContent = 'Snippet not found';
+        }
+      }
+
+      // Generic copy to clipboard function
+      async function copyToClipboard(text, button) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showButtonFeedback(button, '✔ Copied', 'success');
+        } catch (error) {
+          console.error('Copy failed:', error);
+          showButtonFeedback(button, '✗ Failed', 'error');
+
+          // Fallback for older browsers
+          try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showButtonFeedback(button, '✔ Copied', 'success');
+          } catch (fallbackError) {
+            showButtonFeedback(button, '✗ Failed', 'error');
+          }
+        }
+      }
+
+      // Show temporary feedback on button
+      function showButtonFeedback(button, message, type = 'success') {
+        const originalText = button.dataset.originalText || button.textContent;
+        const originalDisabled = button.disabled;
+
+        // Store original text if not already stored
+        if (!button.dataset.originalText) {
+          button.dataset.originalText = originalText;
+        }
+
+        // Update button appearance
+        button.textContent = message;
+        button.disabled = true;
+
+        // Add CSS class for styling (optional)
+        button.classList.add(`copy-${type}`);
+
+        // Reset after 2 seconds
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.disabled = originalDisabled;
+          button.classList.remove(`copy-${type}`);
+        }, 1000);
+      }
+
+      // Copy content to clipboard
+      document.getElementById('copyContentBtn').addEventListener('click', async () => {
+        const content = document.getElementById('content').value;
+        const button = document.getElementById('copyContentBtn');
+        await copyToClipboard(content, button);
+      });
+
+      // Copy link to clipboard
+      document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+        const currentUrl = window.location.href;
+        const button = document.getElementById('copyLinkBtn');
+        await copyToClipboard(currentUrl, button);
+      });
+
+      // Navigate to create new snippet
+      document.getElementById('createNewBtn').addEventListener('click', () => {
+        window.location.href = '/';
+      });
+
+      loadSnippet();
+    </script>
+  </body>
+</html>

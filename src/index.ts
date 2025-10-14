@@ -1,6 +1,6 @@
 import { serve } from "bun";
 import index from "./index.html";
-import view from "./view.html";
+import snippet from "./snippet.html";
 import { initDb, createSnippet, getSnippetByShortId } from "./db";
 
 // Initialize the database
@@ -17,7 +17,7 @@ const server = serve({
 					const body = await req.json();
 
 					// Validate required fields
-					if (!body.name || !body.content || !body.language) {
+					if (!body.name || !body.content) {
 						return Response.json(
 							{ error: "Missing required fields: name, content, language" },
 							{ status: 400 },
@@ -26,16 +26,14 @@ const server = serve({
 
 					// Create the snippet
 					const snippet = createSnippet({
-						shortId: body.shortId,
 						content: body.content,
-						language: body.language,
 						name: body.name,
 					});
 
 					return Response.json(snippet, { status: 201 });
 				} catch (error) {
 					return Response.json(
-						{ error: "Failed to create snippet: " + error.message },
+						{ error: `Failed to create snippet: ${error}` },
 						{ status: 500 },
 					);
 				}
@@ -58,7 +56,7 @@ const server = serve({
 					return Response.json(snippet);
 				} catch (error) {
 					return Response.json(
-						{ error: "Failed to fetch snippet: " + error.message },
+						{ error: `Failed to fetch snippet: ${error}` },
 						{ status: 500 },
 					);
 				}
@@ -66,7 +64,7 @@ const server = serve({
 		},
 
 		// View snippet by shortId - this should be last to not override other routes
-		"/snippet/:shortId": view,
+		"/s/:shortId": snippet,
 	},
 
 	development: process.env.NODE_ENV !== "production" && {

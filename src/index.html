@@ -3,32 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="./logo.svg" />
+    <link rel="stylesheet" href="./styles.css" />
     <title>Sipps</title>
   </head>
   <body>
-    <h1>Create a Snippet</h1>
+    <a href="/" class="header">
+      <h1>SIPP</h1>
+      <h3>Minimal Code Sharing</h3>
+    </a>
 
     <form id="snippetForm">
       <div>
-        <label for="name">Name:</label><br>
-        <input type="text" id="name" name="name" required>
+        <input placeholder="index.ts" type="text" id="name" name="name" required>
       </div>
 
       <div>
-        <label for="language">Language:</label><br>
-        <input type="text" id="language" name="language" required>
-      </div>
-
-      <div>
-        <label for="content">Content:</label><br>
-        <textarea id="content" name="content" rows="10" cols="50" required></textarea>
+        <textarea placeholder="// paste your code here" id="content" name="content"  required></textarea>
       </div>
 
       <button type="submit">Create Snippet</button>
     </form>
-
-    <div id="result"></div>
 
     <script>
       document.getElementById('snippetForm').addEventListener('submit', async (e) => {
@@ -37,7 +31,6 @@
         const formData = new FormData(e.target);
         const data = {
           name: formData.get('name'),
-          language: formData.get('language'),
           content: formData.get('content')
         };
 
@@ -53,7 +46,7 @@
           const result = await response.json();
 
           if (response.ok) {
-            document.getElementById('result').innerHTML = '<p>Snippet created successfully! ID: ' + result.id + ' | Short ID: ' + result.shortId + '</p>';
+            window.location.href = `/s/${result.shortId}`
             e.target.reset();
           } else {
             document.getElementById('result').innerHTML = '<p>Error: ' + result.error + '</p>';

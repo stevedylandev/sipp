@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 
-const db = new Database("sipps.sqlite");
+const db = new Database("sipp.sqlite");
 
 // URL-safe characters for short ID generation (similar to nanoid)
 const ALPHABET =
@@ -22,7 +22,6 @@ export interface Snippet {
 	id?: number;
 	shortId: string;
 	content: string;
-	language: string;
 	name: string;
 }
 
@@ -30,10 +29,9 @@ export async function initDb() {
 	db.query(`
   CREATE TABLE IF NOT EXISTS snippets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    shortId TEXT NOT NULL,
+    shortId TEXT NOT NULL UNIQUE,
     content TEXT NOT NULL,
-    name TEXT NOT NULL,
-    language TEXT NOT NULL
+    name TEXT NOT NULL
   )
 `).run();
 }
@@ -46,14 +44,9 @@ export function createSnippet(
 	const shortId = snippet.shortId || generateShortId();
 
 	const query = db.query(
-		"INSERT INTO snippets (shortId, content, name, language) VALUES (?, ?, ?, ?) RETURNING *",
+		"INSERT INTO snippets (shortId, content, name) VALUES (?, ?, ?) RETURNING *",
 	);
-	return query.get(
-		shortId,
-		snippet.content,
-		snippet.name,
-		snippet.language,
-	) as Snippet;
+	return query.get(shortId, snippet.content, snippet.name) as Snippet;
 }
 
 // Read a snippet by ID
@@ -96,10 +89,6 @@ export function updateSnippet(
 	if (updates.name !== undefined) {
 		fields.push("name = ?");
 		values.push(updates.name);
-	}
-	if (updates.language !== undefined) {
-		fields.push("language = ?");
-		values.push(updates.language);
 	}
 
 	if (fields.length === 0) return existing;

@@ -101,7 +101,7 @@ User=YOURUSER
 WorkingDirectory=/home/YOUR_USER/sipp
 # the command to start the app
 # requires absolute paths
-ExecStart=/home/YOUR_USER/.bun/bin/bun run src/index.ts
+ExecStart=/home/YOUR_USER/.bun/bin/bun start
 # restart policy
 # one of {no|on-success|on-failure|on-abnormal|on-watchdog|on-abort|always}
 Restart=always

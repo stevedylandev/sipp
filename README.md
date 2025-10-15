@@ -6,7 +6,7 @@ Minimal code sharing made for self hosting
 
 ## About
 
-A while back I released an app called Snippets. While it had lots of polish and the stuff influencers say you need to have, it was also bloated, slow, and had too much vendor lock-in. Sipp is the antitode that takes a different approach. There is no Next.js, shadcn/ui components, or even syntax highlighting. It's just text sharing, all powered by Bun and no other dependencies. From the ground up it's designed to be self hosted and used on your own hardware or VPS so you have control of the data. I've also designed this with longevity in mind by using jut html css an js. You can edit any part you like, update it, and know that you can always come back and fix something.
+A while back I released an app called Snippets. While it had lots of polish and the stuff influencers say you need to have, it was also bloated, slow, and had too much vendor lock-in. Sipp is the antitode that takes a different approach. There is no Next.js, shadcn/ui components, or even syntax highlighting. It's just text sharing, all powered by Bun and no other dependencies. From the ground up it's designed to be self hosted and used on your own hardware or VPS so you have control of the data. I've also designed this with longevity in mind by using just html css and js. You can edit any part you like, update it, and know that you can always come back and fix something.
 
 The web needs more simplicity, and the ability to build our own tools and solutions that can be picked up and used 5 or 10 years from now. Put down the framework, build simply, and make it open source.
 

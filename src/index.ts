@@ -1,6 +1,5 @@
 import { serve } from "bun";
 import index from "./index.html";
-import about from "./about.html";
 import snippet from "./snippet.html";
 import { initDb, createSnippet, getSnippetByShortId } from "./db";
 
@@ -11,24 +10,8 @@ const server = serve({
 	routes: {
 		// Home page - create snippet form
 		"/": index,
-		// About page
-		"/about": about,
 		// View snippet by shortId - this should be last to not override other routes
 		"/s/:shortId": snippet,
-
-		// Serve static assets
-		"/assets/*": {
-			async GET(req) {
-				const url = new URL(req.url);
-				const filePath = `src${url.pathname}`;
-				try {
-					return new Response(Bun.file(filePath));
-				} catch (error) {
-					console.log(error);
-					return new Response("Not Found", { status: 404 });
-				}
-			},
-		},
 
 		// Create a snippet
 		"/api/snippets": {

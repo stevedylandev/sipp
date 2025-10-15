@@ -32,4 +32,4 @@ RUN mkdir -p /usr/src/app/data
 EXPOSE 3000/tcp
 
 # Run the app
-ENTRYPOINT [ "bun", "run", "src/index.ts" ]
+ENTRYPOINT [ "bun", "start" ]

@@ -22,7 +22,7 @@ const server = serve({
 					// Validate required fields
 					if (!body.name || !body.content) {
 						return Response.json(
-							{ error: "Missing required fields: name, content, language" },
+							{ error: "Missing required fields: name, content" },
 							{ status: 400 },
 						);
 					}

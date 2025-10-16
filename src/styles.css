@@ -2,11 +2,14 @@
 	padding: 0;
 	margin: 0;
 	box-sizing: border-box;
-	background: #121113;
-	color: #ffffff;
 	font-family: "Commit Mono", monospace, sans-serif;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
+}
+
+html {
+	background: #121113;
+	color: #ffffff;
 }
 
 html::-webkit-scrollbar {
@@ -40,6 +43,8 @@ body {
 }
 
 #snippetForm input {
+	background: #121113;
+	color: #ffffff;
 	border: 1px solid white;
 	padding: 4px;
 }
@@ -59,6 +64,8 @@ body {
 }
 
 textarea {
+	background: #121113;
+	color: #ffffff;
 	width: 100%;
 	min-height: 400px;
 	padding: 6px;
@@ -66,10 +73,17 @@ textarea {
 }
 
 button {
+	background: #121113;
+	color: #ffffff;
 	padding: 6px;
 	border: 1px solid white;
 	cursor: pointer;
 	width: fit-content;
+}
+
+a {
+	background: #121113;
+	color: #ffffff;
 }
 
 @media (max-width: 480px) {

@@ -33,6 +33,43 @@ bun dev
 # 🚀 Server running at http://localhost:3000/
 ```
 
+## CLI Script
+
+Included with this repos is a bash script `snippet.sh` that you can use to easily create snippets from local files. Follow the instructions below to use it!
+
+1. Update the server URL
+
+At the top of the bash script you should see a constant that you can update to be your deployed or local server URL
+
+```bash
+#!/usr/bin/env bash
+
+# Server URL configuration
+SERVER_URL="http://localhost:3000"
+```
+
+2. Make the script executable
+
+```bash
+chmod +x create-snippet.sh
+```
+
+3. Move it into a binary path
+
+This will vary from machine or OS, but most people will have a place where downloaded executables are stored and that folder is added to the shell path through a `bashrc` or `zshrc` file. An example might be `~/.local/share`. You can leave off the `.sh` file extension so you don't need to include it while utilizing the script.
+
+```bash
+cp snippet.sh ~/.local/share/snippet
+```
+
+4. Usage
+
+Simply point provide the path to the file you want to create a snippet for and the script will return the URL for said snippet, as well as copy the URL to your clipboard if supported.
+
+```bash
+snippet src/index.ts
+```
+
 ## Project Structure
 
 ```

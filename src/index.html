@@ -51,6 +51,15 @@
     </form>
 
     <script>
+      // Keyboard shortcut to submit; use ⌘ + Enter or ctrl + Enter to trigger a submission
+      document.getElementById('content').addEventListener('keydown', (e) => {
+        if(e.metaKey && e.key === 'Enter' || e.ctrlKey && e.key === 'Enter'){
+          e.preventDefault()
+          document.getElementById('snippetForm').requestSubmit()
+        }
+      })
+
+      // Main form submission
       document.getElementById('snippetForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 

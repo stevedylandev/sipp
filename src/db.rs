@@ -1,11 +1,12 @@
 use rand::RngExt;
 use rusqlite::{Connection, params};
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 pub type Db = Arc<Mutex<Connection>>;
 
+#[derive(Serialize, Deserialize)]
 pub struct Snippet {
-    #[allow(dead_code)]
     pub id: i64,
     pub short_id: String,
     pub content: String,

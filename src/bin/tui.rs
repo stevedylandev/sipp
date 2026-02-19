@@ -105,6 +105,31 @@ impl App {
         }
     }
 
+    fn delete_selected(&mut self, db: &sipp_rust::db::Db) {
+        if let Some(selected_index) = self.list_state.selected() {
+            if let Some(snippet) = self.snippets.get(selected_index) {
+                // Delete from database
+                if sipp_rust::db::delete_snippet_by_short_id(db, &snippet.short_id) {
+                    // Remove from local vector
+                    self.snippets.remove(selected_index);
+
+                    // Adjust selection after deletion
+                    if self.snippets.is_empty() {
+                        self.list_state.select(None);
+                    } else if selected_index >= self.snippets.len() {
+                        self.list_state.select(Some(self.snippets.len() - 1));
+                    } else {
+                        self.list_state.select(Some(selected_index));
+                    }
+
+                    self.status_message = Some(("Deleted!".to_string(), Instant::now()));
+                } else {
+                    self.status_message = Some(("Failed to delete!".to_string(), Instant::now()));
+                }
+            }
+        }
+    }
+
     fn clear_expired_status(&mut self) {
         if let Some((_, time)) = &self.status_message {
             if time.elapsed() > Duration::from_secs(2) {
@@ -153,12 +178,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = db::init_db();
     let snippets = db::get_all_snippets(&db);
 
-    ratatui::run(|terminal| run_app(terminal, App::new(snippets)))
+    ratatui::run(|terminal| run_app(terminal, App::new(snippets), &db))
 }
 
 fn run_app(
     terminal: &mut DefaultTerminal,
     mut app: App,
+    db: &sipp_rust::db::Db,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while !app.should_quit {
         app.clear_expired_status();
@@ -304,6 +330,7 @@ fn run_app(
                             KeyCode::Char('j') | KeyCode::Down => app.move_down(),
                             KeyCode::Char('k') | KeyCode::Up => app.move_up(),
                             KeyCode::Char('y') => app.copy_selected(),
+                            KeyCode::Char('d') => app.delete_selected(db),
                             KeyCode::Char('?') => app.show_help = true,
                             KeyCode::Enter => {
                                 if app.selected_snippet().is_some() {

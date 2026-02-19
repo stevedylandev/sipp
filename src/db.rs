@@ -87,3 +87,14 @@ pub fn get_all_snippets(db: &Db) -> Vec<Snippet> {
     .filter_map(|r| r.ok())
     .collect()
 }
+
+pub fn delete_snippet_by_short_id(db: &Db, short_id: &str) -> bool {
+    let conn = db.lock().unwrap();
+    match conn.execute(
+        "DELETE FROM snippets WHERE short_id = ?1",
+        params![short_id],
+    ) {
+        Ok(rows_affected) => rows_affected > 0,
+        Err(_) => false,
+    }
+}

@@ -69,3 +69,21 @@ pub fn get_snippet_by_short_id(db: &Db, short_id: &str) -> Option<Snippet> {
     )
     .ok()
 }
+
+pub fn get_all_snippets(db: &Db) -> Vec<Snippet> {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, short_id, content, name FROM snippets ORDER BY id DESC")
+        .expect("Failed to prepare statement");
+    stmt.query_map([], |row| {
+        Ok(Snippet {
+            id: row.get(0)?,
+            short_id: row.get(1)?,
+            content: row.get(2)?,
+            name: row.get(3)?,
+        })
+    })
+    .expect("Failed to query snippets")
+    .filter_map(|r| r.ok())
+    .collect()
+}

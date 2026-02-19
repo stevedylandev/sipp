@@ -1,5 +1,3 @@
-mod db;
-
 use askama::Template;
 use askama_web::WebTemplate;
 use axum::{
@@ -10,9 +8,8 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
+use sipp_rust::db::{self, Db};
 use tower_http::services::ServeDir;
-
-use db::Db;
 
 #[derive(Template)]
 #[template(path = "index.html")]

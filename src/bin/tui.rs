@@ -49,10 +49,11 @@ struct App {
     create_name: String,
     create_content: String,
     is_remote: bool,
+    remote_url: Option<String>,
 }
 
 impl App {
-    fn new(snippets: Vec<Snippet>, is_remote: bool) -> Self {
+    fn new(snippets: Vec<Snippet>, is_remote: bool, remote_url: Option<String>) -> Self {
         let mut list_state = ListState::default();
         if !snippets.is_empty() {
             list_state.select(Some(0));
@@ -75,6 +76,7 @@ impl App {
             create_name: String::new(),
             create_content: String::new(),
             is_remote,
+            remote_url,
         }
     }
 
@@ -123,6 +125,25 @@ impl App {
             if let Ok(mut clipboard) = Clipboard::new() {
                 let _ = clipboard.set_text(&snippet.content);
                 self.status_message = Some(("Copied!".to_string(), Instant::now()));
+            }
+        }
+    }
+
+    fn copy_link(&mut self) {
+        match &self.remote_url {
+            Some(url) => {
+                if let Some(snippet) = self.selected_snippet() {
+                    let link = format!("{}/s/{}", url.trim_end_matches('/'), snippet.short_id);
+                    if let Ok(mut clipboard) = Clipboard::new() {
+                        let _ = clipboard.set_text(&link);
+                        self.status_message =
+                            Some(("Link copied!".to_string(), Instant::now()));
+                    }
+                }
+            }
+            None => {
+                self.status_message =
+                    Some(("No remote URL configured".to_string(), Instant::now()));
             }
         }
     }
@@ -254,9 +275,9 @@ fn to_ratatui_color(color: syntect::highlighting::Color) -> Color {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let (backend, is_remote) = match cli.remote {
-        Some(url) => (Backend::remote(url, cli.api_key), true),
-        None => (Backend::local(), false),
+    let (backend, is_remote, remote_url) = match cli.remote {
+        Some(url) => (Backend::remote(url.clone(), cli.api_key), true, Some(url)),
+        None => (Backend::local(), false, None),
     };
 
     let snippets = match backend.list_snippets() {
@@ -267,7 +288,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    ratatui::run(|terminal| run_app(terminal, App::new(snippets, is_remote), &backend))
+    ratatui::run(|terminal| run_app(terminal, App::new(snippets, is_remote, remote_url), &backend))
 }
 
 fn run_app(
@@ -432,7 +453,7 @@ fn run_app(
             if app.show_help {
                 let area = frame.area();
                 let popup_width = 44u16.min(area.width.saturating_sub(4));
-                let popup_height = 18u16.min(area.height.saturating_sub(4));
+                let popup_height = 19u16.min(area.height.saturating_sub(4));
                 let popup_area = ratatui::layout::Rect {
                     x: (area.width.saturating_sub(popup_width)) / 2,
                     y: (area.height.saturating_sub(popup_height)) / 2,
@@ -486,6 +507,15 @@ fn run_app(
                                 .add_modifier(Modifier::BOLD),
                         ),
                         Span::raw("Copy snippet"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(
+                            "  Y    ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw("Copy link"),
                     ]),
                     Line::from(vec![
                         Span::styled(
@@ -569,6 +599,7 @@ fn run_app(
                             KeyCode::Char('j') | KeyCode::Down => app.move_down(),
                             KeyCode::Char('k') | KeyCode::Up => app.move_up(),
                             KeyCode::Char('y') => app.copy_selected(),
+                            KeyCode::Char('Y') => app.copy_link(),
                             KeyCode::Char('d') => app.delete_selected(backend),
                             KeyCode::Char('c') => app.start_create(),
                             KeyCode::Char('r') if app.is_remote => app.refresh(backend),
@@ -589,6 +620,7 @@ fn run_app(
                             }
                             KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                             KeyCode::Char('y') => app.copy_selected(),
+                            KeyCode::Char('Y') => app.copy_link(),
                             KeyCode::Char('?') => app.show_help = true,
                             _ => {}
                         },

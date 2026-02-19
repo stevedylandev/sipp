@@ -1,16 +1,18 @@
 use askama::Template;
 use askama_web::WebTemplate;
 use axum::{
-    Json, Router,
-    extract::{Form, Path, State},
+    Form, Json, Router,
+    extract::{Path, Request, State},
     http::{HeaderMap, StatusCode, header},
+    middleware::{self, Next},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use rust_embed::Embed;
 use serde::Deserialize;
 use crate::db::{self, Db, Snippet};
 use crate::highlight::Highlighter;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 #[derive(Embed)]
@@ -22,10 +24,32 @@ struct Assets;
 struct Static;
 
 #[derive(Clone)]
+struct ServerConfig {
+    api_key: Option<String>,
+    auth_endpoints: HashSet<String>,
+}
+
+impl ServerConfig {
+    fn from_env() -> Self {
+        let api_key = std::env::var("SIPP_API_KEY").ok();
+        let auth_endpoints = match std::env::var("SIPP_AUTH_ENDPOINTS") {
+            Ok(val) if val.trim().eq_ignore_ascii_case("none") => HashSet::new(),
+            Ok(val) => val.split(',').map(|s| s.trim().to_lowercase()).collect(),
+            Err(_) => HashSet::new(),
+        };
+        ServerConfig { api_key, auth_endpoints }
+    }
+
+    fn requires_auth(&self, name: &str) -> bool {
+        self.auth_endpoints.contains("all") || self.auth_endpoints.contains(name)
+    }
+}
+
+#[derive(Clone)]
 struct AppState {
     db: Db,
     highlighter: Arc<Highlighter>,
-    api_key: Option<String>,
+    server_config: ServerConfig,
 }
 
 #[derive(Template)]
@@ -86,26 +110,35 @@ async fn create_snippet(
     Redirect::to(&format!("/s/{}", snippet.short_id))
 }
 
-fn check_api_key(state: &AppState, headers: &HeaderMap) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
-    let server_key = match &state.api_key {
+async fn require_api_key(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Request,
+    next: Next,
+) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
+    let server_key = match &state.server_config.api_key {
         Some(k) => k,
-        None => return Err((StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "No API key configured on server"})))),
+        None => return Err((
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "No API key configured on server"})),
+        )),
     };
     let provided = headers
         .get("x-api-key")
         .and_then(|v| v.to_str().ok());
     match provided {
-        Some(k) if k == server_key => Ok(()),
-        _ => Err((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid or missing API key"})))),
+        Some(k) if k == server_key => Ok(next.run(request).await),
+        _ => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid or missing API key"})),
+        )),
     }
 }
 
 async fn api_list_snippets(
     State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<Snippet>>, (StatusCode, Json<serde_json::Value>)> {
-    check_api_key(&state, &headers)?;
-    Ok(Json(db::get_all_snippets(&state.db)))
+) -> Json<Vec<Snippet>> {
+    Json(db::get_all_snippets(&state.db))
 }
 
 async fn api_get_snippet(
@@ -134,15 +167,60 @@ async fn api_create_snippet(
 
 async fn api_delete_snippet(
     State(state): State<AppState>,
-    headers: HeaderMap,
     Path(short_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    check_api_key(&state, &headers)?;
     if db::delete_snippet_by_short_id(&state.db, &short_id) {
         Ok(Json(serde_json::json!({"deleted": true})))
     } else {
         Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"}))))
     }
+}
+
+fn build_api_routes(state: &AppState) -> Router<AppState> {
+    let config = &state.server_config;
+
+    let auth_layer = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+    // /api/snippets — GET (api_list) and POST (api_create)
+    let list_authed = config.requires_auth("api_list");
+    let create_authed = config.requires_auth("api_create");
+
+    // /api/snippets/{short_id} — GET (api_get) and DELETE (api_delete)
+    let get_authed = config.requires_auth("api_get");
+    let delete_authed = config.requires_auth("api_delete");
+
+    // Build authed router
+    let mut authed = Router::new();
+    if list_authed {
+        authed = authed.route("/api/snippets", get(api_list_snippets));
+    }
+    if create_authed {
+        authed = authed.route("/api/snippets", post(api_create_snippet));
+    }
+    if get_authed {
+        authed = authed.route("/api/snippets/{short_id}", get(api_get_snippet));
+    }
+    if delete_authed {
+        authed = authed.route("/api/snippets/{short_id}", delete(api_delete_snippet));
+    }
+    let authed = authed.route_layer(auth_layer);
+
+    // Build open router
+    let mut open = Router::new();
+    if !list_authed {
+        open = open.route("/api/snippets", get(api_list_snippets));
+    }
+    if !create_authed {
+        open = open.route("/api/snippets", post(api_create_snippet));
+    }
+    if !get_authed {
+        open = open.route("/api/snippets/{short_id}", get(api_get_snippet));
+    }
+    if !delete_authed {
+        open = open.route("/api/snippets/{short_id}", delete(api_delete_snippet));
+    }
+
+    authed.merge(open)
 }
 
 fn mime_from_path(path: &str) -> &'static str {
@@ -184,19 +262,43 @@ async fn serve_static(Path(path): Path<String>) -> Response {
 }
 
 pub async fn run(host: String, port: u16) {
+    dotenvy::dotenv().ok();
+
+    let server_config = ServerConfig::from_env();
+
+    // Validate endpoint names
+    let known = ["api_list", "api_create", "api_get", "api_delete", "all", "none"];
+    for name in &server_config.auth_endpoints {
+        if !known.contains(&name.as_str()) {
+            eprintln!("Warning: unknown auth endpoint name '{}' in SIPP_AUTH_ENDPOINTS", name);
+        }
+    }
+
+    if !server_config.auth_endpoints.is_empty() && server_config.api_key.is_none() {
+        eprintln!("Warning: SIPP_AUTH_ENDPOINTS is set but SIPP_API_KEY is not configured");
+    }
+
+    if server_config.auth_endpoints.is_empty() {
+        println!("Auth: disabled (no endpoints require authentication)");
+    } else {
+        let names: Vec<&str> = server_config.auth_endpoints.iter().map(|s| s.as_str()).collect();
+        println!("Auth: enabled for endpoints: {}", names.join(", "));
+    }
+
     let state = AppState {
         db: db::init_db(),
         highlighter: Arc::new(Highlighter::new()),
-        api_key: std::env::var("SIPP_API_KEY").ok(),
+        server_config,
     };
+
+    let api_routes = build_api_routes(&state);
 
     let app = Router::new()
         .route("/", get(index))
         .route("/about", get(about))
         .route("/s/{short_id}", get(view_snippet))
         .route("/snippets", post(create_snippet))
-        .route("/api/snippets", get(api_list_snippets).post(api_create_snippet))
-        .route("/api/snippets/{short_id}", get(api_get_snippet).delete(api_delete_snippet))
+        .merge(api_routes)
         .route("/assets/{*path}", get(serve_assets))
         .route("/static/{*path}", get(serve_static))
         .with_state(state);

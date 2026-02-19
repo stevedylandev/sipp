@@ -39,15 +39,16 @@
       <p>by <a target="_blank" href="https://stevedylan.dev">Steve</a></p>
     </div>
 
-    <form id="snippetForm">
+    <div id="snippetForm">
         <label id="snippetName">{{ name }}</label>
-        <textarea id="content" name="content" rows="10" cols="50" readonly>{{ content }}</textarea>
+        <div class="code-container">{{ highlighted_content|safe }}</div>
+        <textarea id="content" style="display:none;">{{ content }}</textarea>
       <div class="button-group">
         <button type="button" id="copyLinkBtn" data-original-text="Copy Link">Copy Link</button>
         <button type="button" id="copyContentBtn" data-original-text="Copy Content">Copy Content</button>
         <button type="button" id="createNewBtn">Create New Snippet</button>
       </div>
-    </form>
+    </div>
 
     <script>
       async function copyToClipboard(text, button) {

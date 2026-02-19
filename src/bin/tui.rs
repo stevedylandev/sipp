@@ -1,5 +1,5 @@
 use arboard::Clipboard;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal,
@@ -9,6 +9,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget},
 };
 use sipp_rust::backend::Backend;
+use sipp_rust::config;
 use sipp_rust::db::Snippet;
 use std::io::Cursor;
 use std::time::{Duration, Instant};
@@ -27,6 +28,15 @@ struct Cli {
     /// API key for authenticated operations
     #[arg(short = 'k', long, env = "SIPP_API_KEY")]
     api_key: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Save remote URL and API key to config file
+    Auth,
 }
 
 enum Focus {
@@ -272,13 +282,68 @@ fn to_ratatui_color(color: syntect::highlighting::Color) -> Color {
     }
 }
 
+fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{self, Write};
+
+    print!("Remote URL: ");
+    io::stdout().flush()?;
+    let mut remote_url = String::new();
+    io::stdin().read_line(&mut remote_url)?;
+    let remote_url = remote_url.trim().to_string();
+
+    print!("API Key: ");
+    io::stdout().flush()?;
+    let api_key = rpassword::read_password()?;
+    let api_key = api_key.trim().to_string();
+
+    let cfg = config::Config {
+        remote_url: if remote_url.is_empty() {
+            None
+        } else {
+            Some(remote_url)
+        },
+        api_key: if api_key.is_empty() {
+            None
+        } else {
+            Some(api_key)
+        },
+    };
+
+    config::save_config(&cfg)?;
+    println!("Config saved to {}", config::config_path().display());
+    Ok(())
+}
+
+fn resolve_backend(cli: &Cli) -> (Backend, bool, Option<String>) {
+    // 1. CLI flags / env vars take highest priority
+    if let Some(url) = &cli.remote {
+        return (
+            Backend::remote(url.clone(), cli.api_key.clone()),
+            true,
+            Some(url.clone()),
+        );
+    }
+
+    // 2. If no local DB exists, try config file
+    if !std::path::Path::new("sipp.sqlite").exists() {
+        let cfg = config::load_config();
+        if let Some(url) = cfg.remote_url {
+            return (Backend::remote(url.clone(), cfg.api_key), true, Some(url));
+        }
+    }
+
+    // 3. Fallback to local DB (creates it if needed)
+    (Backend::local(), false, None)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let (backend, is_remote, remote_url) = match cli.remote {
-        Some(url) => (Backend::remote(url.clone(), cli.api_key), true, Some(url)),
-        None => (Backend::local(), false, None),
-    };
+    if let Some(Commands::Auth) = &cli.command {
+        return run_auth();
+    }
+
+    let (backend, is_remote, remote_url) = resolve_backend(&cli);
 
     let snippets = match backend.list_snippets() {
         Ok(s) => s,

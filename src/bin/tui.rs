@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget},
 };
 use sipp_rust::db::{self, Snippet};
 use std::time::{Duration, Instant};
@@ -27,6 +27,7 @@ struct App {
     status_message: Option<(String, Instant)>,
     focus: Focus,
     content_scroll: u16,
+    show_help: bool,
     syntax_set: SyntaxSet,
     theme: Theme,
 }
@@ -49,6 +50,7 @@ impl App {
             status_message: None,
             focus: Focus::List,
             content_scroll: 0,
+            show_help: false,
             syntax_set,
             theme,
         }
@@ -231,34 +233,98 @@ fn run_app(
                     .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD));
                 frame.render_widget(status, outer[1]);
             }
+
+            if app.show_help {
+                let area = frame.area();
+                let popup_width = 40u16.min(area.width.saturating_sub(4));
+                let popup_height = 14u16.min(area.height.saturating_sub(4));
+                let popup_area = ratatui::layout::Rect {
+                    x: (area.width.saturating_sub(popup_width)) / 2,
+                    y: (area.height.saturating_sub(popup_height)) / 2,
+                    width: popup_width,
+                    height: popup_height,
+                };
+
+                let help_text = Text::from(vec![
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled("  j/↓  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Move down / Scroll down"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  k/↑  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Move up / Scroll up"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("  Focus content pane"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  Esc  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Back / Quit"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  y    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Copy snippet"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  q    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Quit"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  ?    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::raw("Toggle this help"),
+                    ]),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "  Press any key to close",
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ]);
+
+                Clear.render(popup_area, frame.buffer_mut());
+                let help = Paragraph::new(help_text).block(
+                    Block::default()
+                        .title(" Keybindings ")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::Yellow)),
+                );
+                frame.render_widget(help, popup_area);
+            }
         })?;
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                match app.focus {
-                    Focus::List => match key.code {
-                        KeyCode::Char('q') => app.should_quit = true,
-                        KeyCode::Char('j') | KeyCode::Down => app.move_down(),
-                        KeyCode::Char('k') | KeyCode::Up => app.move_up(),
-                        KeyCode::Char('y') => app.copy_selected(),
-                        KeyCode::Enter => {
-                            if app.selected_snippet().is_some() {
-                                app.focus = Focus::Content;
+                if app.show_help {
+                    app.show_help = false;
+                } else {
+                    match app.focus {
+                        Focus::List => match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
+                            KeyCode::Char('j') | KeyCode::Down => app.move_down(),
+                            KeyCode::Char('k') | KeyCode::Up => app.move_up(),
+                            KeyCode::Char('y') => app.copy_selected(),
+                            KeyCode::Char('?') => app.show_help = true,
+                            KeyCode::Enter => {
+                                if app.selected_snippet().is_some() {
+                                    app.focus = Focus::Content;
+                                }
                             }
-                        }
-                        _ => {}
-                    },
-                    Focus::Content => match key.code {
-                        KeyCode::Char(' ') | KeyCode::Esc | KeyCode::Char('q') => {
-                            app.focus = Focus::List;
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            app.scroll_down(content_line_count);
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
-                        KeyCode::Char('y') => app.copy_selected(),
-                        _ => {}
-                    },
+                            _ => {}
+                        },
+                        Focus::Content => match key.code {
+                            KeyCode::Char(' ') | KeyCode::Esc | KeyCode::Char('q') => {
+                                app.focus = Focus::List;
+                            }
+                            KeyCode::Char('j') | KeyCode::Down => {
+                                app.scroll_down(content_line_count);
+                            }
+                            KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
+                            KeyCode::Char('y') => app.copy_selected(),
+                            KeyCode::Char('?') => app.show_help = true,
+                            _ => {}
+                        },
+                    }
                 }
             }
         }

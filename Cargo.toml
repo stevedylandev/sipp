@@ -1,0 +1,14 @@
+[package]
+name = "sipp-rust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+tokio = { version = "1", features = ["full"] }
+askama = "0.15.4"
+askama_web = { version = "0.15.1", features = ["axum-0.8"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+tower-http = { version = "0.6.8", features = ["fs"] }
+rand = "0.10"

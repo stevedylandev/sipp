@@ -1,5 +1,6 @@
 use askama::Template;
 use askama_web::WebTemplate;
+use subtle::ConstantTimeEq;
 use axum::{
     Form, Json, Router,
     extract::{Path, Request, State},
@@ -127,7 +128,7 @@ async fn require_api_key(
         .get("x-api-key")
         .and_then(|v| v.to_str().ok());
     match provided {
-        Some(k) if k == server_key => Ok(next.run(request).await),
+        Some(k) if k.as_bytes().ct_eq(server_key.as_bytes()).into() => Ok(next.run(request).await),
         _ => Err((
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({"error": "Invalid or missing API key"})),

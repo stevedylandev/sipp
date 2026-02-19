@@ -52,19 +52,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Some(Commands::Server { port, host }) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(sipp::server::run(host, port));
+            rt.block_on(sipp_so::server::run(host, port));
         }
         Some(Commands::Tui { remote, api_key }) => {
-            sipp::tui::run_interactive(remote, api_key)?;
+            sipp_so::tui::run_interactive(remote, api_key)?;
         }
         Some(Commands::Auth) => {
-            sipp::tui::run_auth()?;
+            sipp_so::tui::run_auth()?;
         }
         None => {
             if let Some(file) = cli.file {
-                sipp::tui::run_file_upload(cli.remote, cli.api_key, file)?;
+                sipp_so::tui::run_file_upload(cli.remote, cli.api_key, file)?;
             } else {
-                sipp::tui::run_interactive(cli.remote, cli.api_key)?;
+                sipp_so::tui::run_interactive(cli.remote, cli.api_key)?;
             }
         }
     }

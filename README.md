@@ -157,20 +157,13 @@ sudo systemctl enable --now sipp
 
 ### Docker
 
-```dockerfile
-FROM rust:1-slim AS builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/sipp /usr/local/bin/sipp
-WORKDIR /data
-EXPOSE 3000
-CMD ["sipp", "server", "--port", "3000", "--host", "0.0.0.0"]
-```
+A `Dockerfile` and `docker-compose.yml` are included in the repository.
 
 ```bash
+# Using Docker Compose (recommended)
+SIPP_API_KEY=your-secret-key docker compose up -d
+
+# Or build and run manually
 docker build -t sipp .
 docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 ```

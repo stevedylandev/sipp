@@ -1,5 +1,5 @@
 [package]
-name = "sipp-rust"
+name = "sipp"
 version = "0.1.0"
 edition = "2024"
 
@@ -17,14 +17,14 @@ serde = { version = "1", features = ["derive"] }
 tower-http = { version = "0.6.8", features = ["fs"] }
 rand = "0.10"
 ratatui = "0.30"
-crossterm = "0.28"
+crossterm = "0.29"
 arboard = "3"
 syntect = "5"
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+reqwest = { version = "0.13", features = ["json", "blocking"] }
 serde_json = "1"
 clap = { version = "4", features = ["derive", "env"] }
-toml = "0.8"
-rpassword = "5"
+toml = "1.0"
+rpassword = "7"
 open = "5.3.3"
 rust-embed = "8"
 dotenvy = "0.15"

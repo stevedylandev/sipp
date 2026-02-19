@@ -293,12 +293,12 @@ fn resolve_backend(remote: Option<String>, api_key: Option<String>) -> (Backend,
 
     if !std::path::Path::new("sipp.sqlite").exists() {
         let cfg = config::load_config();
-        if let Some(url) = cfg.remote_url {
-            return (Backend::remote(url.clone(), cfg.api_key), true, Some(url));
-        }
+        let url = cfg.remote_url.unwrap_or_else(|| "http://localhost:3000".to_string());
+        let api_key = api_key.or(cfg.api_key);
+        return (Backend::remote(url.clone(), api_key), true, Some(url));
     }
 
-    (Backend::local(), false, None)
+    (Backend::local(), false, Some("http://localhost:3000".to_string()))
 }
 
 pub fn run_auth() -> Result<(), Box<dyn std::error::Error>> {

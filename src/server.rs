@@ -36,7 +36,7 @@ impl ServerConfig {
         let auth_endpoints = match std::env::var("SIPP_AUTH_ENDPOINTS") {
             Ok(val) if val.trim().eq_ignore_ascii_case("none") => HashSet::new(),
             Ok(val) => val.split(',').map(|s| s.trim().to_lowercase()).collect(),
-            Err(_) => HashSet::new(),
+            Err(_) => ["api_delete", "api_list"].iter().map(|s| s.to_string()).collect(),
         };
         ServerConfig { api_key, auth_endpoints }
     }

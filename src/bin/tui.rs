@@ -4,11 +4,16 @@ use ratatui::{
     DefaultTerminal,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
-    text::Text,
+    text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use sipp_rust::db::{self, Snippet};
 use std::time::{Duration, Instant};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::Theme;
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
+use std::io::Cursor;
 
 enum Focus {
     List,
@@ -22,6 +27,8 @@ struct App {
     status_message: Option<(String, Instant)>,
     focus: Focus,
     content_scroll: u16,
+    syntax_set: SyntaxSet,
+    theme: Theme,
 }
 
 impl App {
@@ -30,6 +37,11 @@ impl App {
         if !snippets.is_empty() {
             list_state.select(Some(0));
         }
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+        let theme_data = include_bytes!("../ansi.tmTheme");
+        let theme =
+            syntect::highlighting::ThemeSet::load_from_reader(&mut Cursor::new(&theme_data[..]))
+                .expect("failed to load base16 theme");
         Self {
             snippets,
             list_state,
@@ -37,6 +49,8 @@ impl App {
             status_message: None,
             focus: Focus::List,
             content_scroll: 0,
+            syntax_set,
+            theme,
         }
     }
 
@@ -95,6 +109,41 @@ impl App {
                 self.status_message = None;
             }
         }
+    }
+
+    fn highlight_content(&self, name: &str, content: &str) -> Text<'static> {
+        let ext = name.rsplit('.').next().unwrap_or("");
+        let syntax = self
+            .syntax_set
+            .find_syntax_by_extension(ext)
+            .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
+        let mut highlighter = HighlightLines::new(syntax, &self.theme);
+
+        let lines: Vec<Line<'static>> = LinesWithEndings::from(content)
+            .map(|line| {
+                let ranges = highlighter
+                    .highlight_line(line, &self.syntax_set)
+                    .unwrap_or_default();
+                let spans: Vec<Span<'static>> = ranges
+                    .into_iter()
+                    .map(|(style, text)| {
+                        let color = to_ratatui_color(style.foreground);
+                        Span::styled(text.to_owned(), Style::default().fg(color))
+                    })
+                    .collect();
+                Line::from(spans)
+            })
+            .collect();
+
+        Text::from(lines)
+    }
+}
+
+fn to_ratatui_color(color: syntect::highlighting::Color) -> Color {
+    if color.a == 0 {
+        Color::Indexed(color.r)
+    } else {
+        Color::Reset
     }
 }
 
@@ -161,12 +210,12 @@ fn run_app(
 
             frame.render_stateful_widget(list, chunks[0], &mut app.list_state);
 
-            let content = app
-                .selected_snippet()
-                .map(|s| s.content.as_str())
-                .unwrap_or("");
+            let highlighted = match app.selected_snippet() {
+                Some(s) => app.highlight_content(&s.name, &s.content),
+                None => Text::raw(""),
+            };
 
-            let paragraph = Paragraph::new(Text::raw(content))
+            let paragraph = Paragraph::new(highlighted)
                 .block(
                     Block::default()
                         .title(" Content ")

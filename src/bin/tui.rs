@@ -12,6 +12,7 @@ use sipp_rust::backend::Backend;
 use sipp_rust::config;
 use sipp_rust::db::Snippet;
 use std::io::Cursor;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Theme;
@@ -28,6 +29,10 @@ struct Cli {
     /// API key for authenticated operations
     #[arg(short = 'k', long, env = "SIPP_API_KEY")]
     api_key: Option<String>,
+
+    /// File path to create a snippet from (uses filename as name, file contents as content)
+    #[arg(value_name = "FILE")]
+    file: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -148,6 +153,27 @@ impl App {
                         let _ = clipboard.set_text(&link);
                         self.status_message =
                             Some(("Link copied!".to_string(), Instant::now()));
+                    }
+                }
+            }
+            None => {
+                self.status_message =
+                    Some(("No remote URL configured".to_string(), Instant::now()));
+            }
+        }
+    }
+
+    fn open_in_browser(&mut self) {
+        match &self.remote_url {
+            Some(url) => {
+                if let Some(snippet) = self.selected_snippet() {
+                    let link = format!("{}/s/{}", url.trim_end_matches('/'), snippet.short_id);
+                    if let Err(e) = open::that(&link) {
+                        self.status_message =
+                            Some((format!("Failed to open browser: {}", e), Instant::now()));
+                    } else {
+                        self.status_message =
+                            Some(("Opened in browser!".to_string(), Instant::now()));
                     }
                 }
             }
@@ -345,6 +371,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (backend, is_remote, remote_url) = resolve_backend(&cli);
 
+    if let Some(file_path) = &cli.file {
+        let name = file_path
+            .file_name()
+            .ok_or("Invalid file path")?
+            .to_string_lossy()
+            .to_string();
+        let content = std::fs::read_to_string(file_path)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        let snippet = backend
+            .create_snippet(&name, &content)
+            .map_err(|e| format!("{}", e))?;
+        let link = match &remote_url {
+            Some(url) => format!("{}/s/{}", url.trim_end_matches('/'), snippet.short_id),
+            None => snippet.short_id.clone(),
+        };
+        println!("{}", link);
+        if let Ok(mut clipboard) = Clipboard::new() {
+            let _ = clipboard.set_text(&link);
+            println!("\u{2714} Copied to clipboard!");
+        }
+        return Ok(());
+    }
+
     let snippets = match backend.list_snippets() {
         Ok(s) => s,
         Err(e) => {
@@ -518,7 +567,7 @@ fn run_app(
             if app.show_help {
                 let area = frame.area();
                 let popup_width = 44u16.min(area.width.saturating_sub(4));
-                let popup_height = 19u16.min(area.height.saturating_sub(4));
+                let popup_height = 20u16.min(area.height.saturating_sub(4));
                 let popup_area = ratatui::layout::Rect {
                     x: (area.width.saturating_sub(popup_width)) / 2,
                     y: (area.height.saturating_sub(popup_height)) / 2,
@@ -581,6 +630,15 @@ fn run_app(
                                 .add_modifier(Modifier::BOLD),
                         ),
                         Span::raw("Copy link"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(
+                            "  o    ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw("Open in browser"),
                     ]),
                     Line::from(vec![
                         Span::styled(
@@ -667,6 +725,7 @@ fn run_app(
                             KeyCode::Char('Y') => app.copy_link(),
                             KeyCode::Char('d') => app.delete_selected(backend),
                             KeyCode::Char('c') => app.start_create(),
+                            KeyCode::Char('o') => app.open_in_browser(),
                             KeyCode::Char('r') if app.is_remote => app.refresh(backend),
                             KeyCode::Char('?') => app.show_help = true,
                             KeyCode::Enter | KeyCode::Char('l') => {
@@ -686,6 +745,7 @@ fn run_app(
                             KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                             KeyCode::Char('y') => app.copy_selected(),
                             KeyCode::Char('Y') => app.copy_link(),
+                            KeyCode::Char('o') => app.open_in_browser(),
                             KeyCode::Char('?') => app.show_help = true,
                             _ => {}
                         },

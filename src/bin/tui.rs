@@ -366,12 +366,37 @@ fn run_app(
                     );
                     frame.render_widget(content_input, form_layout[1]);
 
+                    match app.focus {
+                        Focus::CreateName => {
+                            let x = form_layout[0].x + 1 + app.create_name.len() as u16;
+                            let y = form_layout[0].y + 1;
+                            frame.set_cursor_position((x, y));
+                        }
+                        Focus::CreateContent => {
+                            let last_line = app.create_content.lines().last().unwrap_or("");
+                            let line_count = app.create_content.lines().count()
+                                + if app.create_content.ends_with('\n') {
+                                    1
+                                } else {
+                                    0
+                                };
+                            let y_offset = if line_count == 0 { 0 } else { line_count - 1 };
+                            let x = form_layout[1].x
+                                + 1
+                                + if app.create_content.ends_with('\n') {
+                                    0
+                                } else {
+                                    last_line.len() as u16
+                                };
+                            let y = form_layout[1].y + 1 + y_offset as u16;
+                            frame.set_cursor_position((x, y));
+                        }
+                        _ => {}
+                    }
+
                     let hint = Paragraph::new(Line::from(vec![
-                        Span::styled("Enter", Style::default().fg(Color::Yellow)),
-                        Span::raw(match app.focus {
-                            Focus::CreateName => " next field  ",
-                            _ => " newline  ",
-                        }),
+                        Span::styled("Tab", Style::default().fg(Color::Yellow)),
+                        Span::raw(" switch field  "),
                         Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
                         Span::raw(" save  "),
                         Span::styled("Esc", Style::default().fg(Color::Yellow)),
@@ -548,7 +573,7 @@ fn run_app(
                             KeyCode::Char('c') => app.start_create(),
                             KeyCode::Char('r') if app.is_remote => app.refresh(backend),
                             KeyCode::Char('?') => app.show_help = true,
-                            KeyCode::Enter => {
+                            KeyCode::Enter | KeyCode::Char('l') => {
                                 if app.selected_snippet().is_some() {
                                     app.focus = Focus::Content;
                                 }
@@ -556,7 +581,7 @@ fn run_app(
                             _ => {}
                         },
                         Focus::Content => match key.code {
-                            KeyCode::Char(' ') | KeyCode::Esc | KeyCode::Char('q') => {
+                          KeyCode::Char(' ') | KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('h') => {
                                 app.focus = Focus::List;
                             }
                             KeyCode::Char('j') | KeyCode::Down => {
@@ -575,7 +600,9 @@ fn run_app(
                             } else {
                                 match key.code {
                                     KeyCode::Esc => app.cancel_create(),
-                                    KeyCode::Enter => app.focus = Focus::CreateContent,
+                                    KeyCode::Enter | KeyCode::Tab => {
+                                        app.focus = Focus::CreateContent
+                                    }
                                     KeyCode::Backspace => {
                                         app.create_name.pop();
                                     }
@@ -592,6 +619,7 @@ fn run_app(
                             } else {
                                 match key.code {
                                     KeyCode::Esc => app.cancel_create(),
+                                    KeyCode::Tab => app.focus = Focus::CreateName,
                                     KeyCode::Enter => app.create_content.push('\n'),
                                     KeyCode::Backspace => {
                                         app.create_content.pop();

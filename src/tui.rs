@@ -1,5 +1,4 @@
 use arboard::Clipboard;
-use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal,
@@ -8,9 +7,9 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget},
 };
-use sipp_rust::backend::Backend;
-use sipp_rust::config;
-use sipp_rust::db::Snippet;
+use crate::backend::Backend;
+use crate::config;
+use crate::db::Snippet;
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -18,31 +17,6 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::Theme;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
-
-#[derive(Parser)]
-#[command(name = "sipp-tui", about = "TUI client for sipp snippets")]
-struct Cli {
-    /// Remote server URL (e.g. http://localhost:3000)
-    #[arg(short, long, env = "SIPP_REMOTE_URL")]
-    remote: Option<String>,
-
-    /// API key for authenticated operations
-    #[arg(short = 'k', long, env = "SIPP_API_KEY")]
-    api_key: Option<String>,
-
-    /// File path to create a snippet from (uses filename as name, file contents as content)
-    #[arg(value_name = "FILE")]
-    file: Option<PathBuf>,
-
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Save remote URL and API key to config file
-    Auth,
-}
 
 enum Focus {
     List,
@@ -74,7 +48,7 @@ impl App {
             list_state.select(Some(0));
         }
         let syntax_set = SyntaxSet::load_defaults_newlines();
-        let theme_data = include_bytes!("../ansi.tmTheme");
+        let theme_data = include_bytes!("ansi.tmTheme");
         let theme =
             syntect::highlighting::ThemeSet::load_from_reader(&mut Cursor::new(&theme_data[..]))
                 .expect("failed to load base16 theme");
@@ -308,7 +282,26 @@ fn to_ratatui_color(color: syntect::highlighting::Color) -> Color {
     }
 }
 
-fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
+fn resolve_backend(remote: Option<String>, api_key: Option<String>) -> (Backend, bool, Option<String>) {
+    if let Some(url) = remote {
+        return (
+            Backend::remote(url.clone(), api_key),
+            true,
+            Some(url),
+        );
+    }
+
+    if !std::path::Path::new("sipp.sqlite").exists() {
+        let cfg = config::load_config();
+        if let Some(url) = cfg.remote_url {
+            return (Backend::remote(url.clone(), cfg.api_key), true, Some(url));
+        }
+    }
+
+    (Backend::local(), false, None)
+}
+
+pub fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
     print!("Remote URL: ");
@@ -340,59 +333,8 @@ fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn resolve_backend(cli: &Cli) -> (Backend, bool, Option<String>) {
-    // 1. CLI flags / env vars take highest priority
-    if let Some(url) = &cli.remote {
-        return (
-            Backend::remote(url.clone(), cli.api_key.clone()),
-            true,
-            Some(url.clone()),
-        );
-    }
-
-    // 2. If no local DB exists, try config file
-    if !std::path::Path::new("sipp.sqlite").exists() {
-        let cfg = config::load_config();
-        if let Some(url) = cfg.remote_url {
-            return (Backend::remote(url.clone(), cfg.api_key), true, Some(url));
-        }
-    }
-
-    // 3. Fallback to local DB (creates it if needed)
-    (Backend::local(), false, None)
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
-    if let Some(Commands::Auth) = &cli.command {
-        return run_auth();
-    }
-
-    let (backend, is_remote, remote_url) = resolve_backend(&cli);
-
-    if let Some(file_path) = &cli.file {
-        let name = file_path
-            .file_name()
-            .ok_or("Invalid file path")?
-            .to_string_lossy()
-            .to_string();
-        let content = std::fs::read_to_string(file_path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
-        let snippet = backend
-            .create_snippet(&name, &content)
-            .map_err(|e| format!("{}", e))?;
-        let link = match &remote_url {
-            Some(url) => format!("{}/s/{}", url.trim_end_matches('/'), snippet.short_id),
-            None => snippet.short_id.clone(),
-        };
-        println!("{}", link);
-        if let Ok(mut clipboard) = Clipboard::new() {
-            let _ = clipboard.set_text(&link);
-            println!("\u{2714} Copied to clipboard!");
-        }
-        return Ok(());
-    }
+pub fn run_interactive(remote: Option<String>, api_key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let (backend, is_remote, remote_url) = resolve_backend(remote, api_key);
 
     let snippets = match backend.list_snippets() {
         Ok(s) => s,
@@ -403,6 +345,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     ratatui::run(|terminal| run_app(terminal, App::new(snippets, is_remote, remote_url), &backend))
+}
+
+pub fn run_file_upload(remote: Option<String>, api_key: Option<String>, file: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let (backend, _, remote_url) = resolve_backend(remote, api_key);
+
+    let name = file
+        .file_name()
+        .ok_or("Invalid file path")?
+        .to_string_lossy()
+        .to_string();
+    let content = std::fs::read_to_string(&file)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let snippet = backend
+        .create_snippet(&name, &content)
+        .map_err(|e| format!("{}", e))?;
+    let link = match &remote_url {
+        Some(url) => format!("{}/s/{}", url.trim_end_matches('/'), snippet.short_id),
+        None => snippet.short_id.clone(),
+    };
+    println!("{}", link);
+    if let Ok(mut clipboard) = Clipboard::new() {
+        let _ = clipboard.set_text(&link);
+        println!("\u{2714} Copied to clipboard!");
+    }
+    Ok(())
 }
 
 fn run_app(
@@ -459,7 +426,6 @@ fn run_app(
 
             frame.render_stateful_widget(list, chunks[0], &mut app.list_state);
 
-            // Right pane: either create form or snippet content
             match app.focus {
                 Focus::CreateName | Focus::CreateContent => {
                     let create_block = Block::default()

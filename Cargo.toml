@@ -4,12 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "sipp-server"
-path = "src/main.rs"
-
-[[bin]]
 name = "sipp"
-path = "src/bin/tui.rs"
+path = "src/main.rs"
 
 [dependencies]
 axum = "0.8.8"
@@ -30,3 +26,4 @@ clap = { version = "4", features = ["derive", "env"] }
 toml = "0.8"
 rpassword = "5"
 open = "5.3.3"
+rust-embed = "8"

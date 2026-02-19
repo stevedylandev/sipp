@@ -2,6 +2,16 @@
 name = "sipp-so"
 version = "0.1.0"
 edition = "2024"
+description = "Minimal code sharing - single binary for web server, CLI, and TUI"
+license = "MIT"
+repository = "https://github.com/stevedylandev/sipp"
+homepage = "https://sipp.so"
+documentation = "https://github.com/stevedylandev/sipp#readme"
+readme = "README.md"
+keywords = ["cli", "tui", "snippet", "code-sharing", "pastebin"]
+categories = ["command-line-utilities", "web-programming"]
+authors = ["Steve Simkins"]
+exclude = [".github", "*.png", "*.gif"]
 
 [[bin]]
 name = "sipp"

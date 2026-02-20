@@ -288,23 +288,23 @@ fn to_ratatui_color(color: syntect::highlighting::Color) -> Color {
     }
 }
 
-fn resolve_backend(remote: Option<String>, api_key: Option<String>) -> (Backend, bool, Option<String>) {
+fn resolve_backend(remote: Option<String>, api_key: Option<String>) -> Result<(Backend, bool, Option<String>), Box<dyn std::error::Error>> {
     if let Some(url) = remote {
-        return (
+        return Ok((
             Backend::remote(url.clone(), api_key),
             true,
             Some(url),
-        );
+        ));
     }
 
     if !std::path::Path::new("sipp.sqlite").exists() {
         let cfg = config::load_config();
         let url = cfg.remote_url.unwrap_or_else(|| "http://localhost:3000".to_string());
         let api_key = api_key.or(cfg.api_key);
-        return (Backend::remote(url.clone(), api_key), true, Some(url));
+        return Ok((Backend::remote(url.clone(), api_key), true, Some(url)));
     }
 
-    (Backend::local(), false, Some("http://localhost:3000".to_string()))
+    Ok((Backend::local()?, false, Some("http://localhost:3000".to_string())))
 }
 
 pub fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
@@ -340,7 +340,7 @@ pub fn run_auth() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn run_interactive(remote: Option<String>, api_key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let (backend, is_remote, remote_url) = resolve_backend(remote, api_key);
+    let (backend, is_remote, remote_url) = resolve_backend(remote, api_key)?;
 
     let snippets = match backend.list_snippets() {
         Ok(s) => s,
@@ -354,7 +354,7 @@ pub fn run_interactive(remote: Option<String>, api_key: Option<String>) -> Resul
 }
 
 pub fn run_file_upload(remote: Option<String>, api_key: Option<String>, file: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let (backend, _, remote_url) = resolve_backend(remote, api_key);
+    let (backend, _, remote_url) = resolve_backend(remote, api_key)?;
 
     let name = file
         .file_name()

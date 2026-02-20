@@ -80,7 +80,7 @@ async fn view_snippet(
     Path(short_id): Path<String>,
 ) -> Result<WebTemplate<SnippetTemplate>, (StatusCode, Html<String>)> {
     match db::get_snippet_by_short_id(&state.db, &short_id) {
-        Some(snippet) => {
+        Ok(Some(snippet)) => {
             let highlighted_content = state.highlighter.highlight(&snippet.name, &snippet.content);
             Ok(WebTemplate(SnippetTemplate {
                 name: snippet.name,
@@ -88,9 +88,13 @@ async fn view_snippet(
                 highlighted_content,
             }))
         }
-        None => Err((
+        Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Html("<h1>Snippet not found</h1>".to_string()),
+        )),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html("<h1>Internal server error</h1>".to_string()),
         )),
     }
 }
@@ -98,9 +102,14 @@ async fn view_snippet(
 async fn create_snippet(
     State(state): State<AppState>,
     Form(form): Form<CreateSnippetForm>,
-) -> impl IntoResponse {
-    let snippet = db::create_snippet(&state.db, &form.name, &form.content);
-    Redirect::to(&format!("/s/{}", snippet.short_id))
+) -> Result<Redirect, (StatusCode, Html<String>)> {
+    match db::create_snippet(&state.db, &form.name, &form.content) {
+        Ok(snippet) => Ok(Redirect::to(&format!("/s/{}", snippet.short_id))),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html("<h1>Internal server error</h1>".to_string()),
+        )),
+    }
 }
 
 async fn require_api_key(
@@ -130,8 +139,11 @@ async fn require_api_key(
 
 async fn api_list_snippets(
     State(state): State<AppState>,
-) -> Json<Vec<Snippet>> {
-    Json(db::get_all_snippets(&state.db))
+) -> Result<Json<Vec<Snippet>>, (StatusCode, Json<serde_json::Value>)> {
+    match db::get_all_snippets(&state.db) {
+        Ok(snippets) => Ok(Json(snippets)),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
+    }
 }
 
 async fn api_get_snippet(
@@ -139,8 +151,9 @@ async fn api_get_snippet(
     Path(short_id): Path<String>,
 ) -> Result<Json<Snippet>, (StatusCode, Json<serde_json::Value>)> {
     match db::get_snippet_by_short_id(&state.db, &short_id) {
-        Some(snippet) => Ok(Json(snippet)),
-        None => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"})))),
+        Ok(Some(snippet)) => Ok(Json(snippet)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"})))),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
     }
 }
 
@@ -153,19 +166,21 @@ struct ApiCreateSnippet {
 async fn api_create_snippet(
     State(state): State<AppState>,
     Json(body): Json<ApiCreateSnippet>,
-) -> (StatusCode, Json<Snippet>) {
-    let snippet = db::create_snippet(&state.db, &body.name, &body.content);
-    (StatusCode::CREATED, Json(snippet))
+) -> Result<(StatusCode, Json<Snippet>), (StatusCode, Json<serde_json::Value>)> {
+    match db::create_snippet(&state.db, &body.name, &body.content) {
+        Ok(snippet) => Ok((StatusCode::CREATED, Json(snippet))),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
+    }
 }
 
 async fn api_delete_snippet(
     State(state): State<AppState>,
     Path(short_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    if db::delete_snippet_by_short_id(&state.db, &short_id) {
-        Ok(Json(serde_json::json!({"deleted": true})))
-    } else {
-        Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"}))))
+    match db::delete_snippet_by_short_id(&state.db, &short_id) {
+        Ok(true) => Ok(Json(serde_json::json!({"deleted": true}))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"})))),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
     }
 }
 
@@ -279,7 +294,7 @@ pub async fn run(host: String, port: u16) {
     }
 
     let state = AppState {
-        db: db::init_db(),
+        db: db::init_db().expect("Failed to initialize database"),
         highlighter: Arc::new(Highlighter::new()),
         server_config,
     };

@@ -9,6 +9,7 @@ Minimal code sharing in Rust
 - Single binary for Server, CLI, and TUI
 - Web UI to create, copy, and share code snippets with syntax highlighting
 - Interactive TUI with authenticated access for snippet management
+- Minimal, fast, and low memory consumption
 
 ## Quickstart
 

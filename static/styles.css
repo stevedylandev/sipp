@@ -49,8 +49,17 @@ body {
 	height: 24px;
 }
 
-.icon:hover {
-	color: white;
+.icon svg {
+	width: 24px;
+	height: 24px;
+}
+
+.icon svg path {
+	fill: #878787;
+}
+
+.icon:hover svg path {
+	fill: white;
 }
 
 #snippetForm {

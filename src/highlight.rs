@@ -20,7 +20,11 @@ impl Highlighter {
     }
 
     pub fn highlight(&self, name: &str, content: &str) -> String {
-        let ext = name.rsplit('.').next().unwrap_or("");
+        let raw_ext = name.rsplit('.').next().unwrap_or("");
+        let ext = match raw_ext {
+            "ts" | "tsx" | "jsx" => "js",
+            other => other,
+        };
         let syntax = self
             .syntax_set
             .find_syntax_by_extension(ext)

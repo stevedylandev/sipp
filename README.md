@@ -172,4 +172,3 @@ docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 
 1. Connect your repository to [Railway](https://railway.app)
 2. Set the environment variables `SIPP_API_KEY` and optionally `SIPP_AUTH_ENDPOINTS`
-3. Set the start command: `sipp server --port $PORT --host 0.0.0.0`

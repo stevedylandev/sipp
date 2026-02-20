@@ -29,10 +29,28 @@ body {
 
 .header {
 	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
 	text-decoration: none;
+}
+
+.nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
 	margin-top: 2rem;
+}
+
+.icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #878787;
+	width: 24px;
+	height: 24px;
+}
+
+.icon:hover {
+	color: white;
 }
 
 #snippetForm {
@@ -47,20 +65,6 @@ body {
 	color: #ffffff;
 	border: 1px solid white;
 	padding: 4px;
-}
-
-.links {
-	display: flex;
-	align-items: center;
-	gap: 1.5rem;
-	font-size: 12px;
-}
-
-.about {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	font-size: 14px;
 }
 
 textarea {

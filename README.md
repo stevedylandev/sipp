@@ -1,6 +1,6 @@
 # Sipp
 
-![cover](https://sipp.so/assets/og.png)
+![cover](https://files.stevedylan.dev/sipp-demo.png)
 
 Minimal code sharing in Rust
 

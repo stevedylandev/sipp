@@ -65,10 +65,6 @@ struct SnippetTemplate {
     highlighted_content: String,
 }
 
-#[derive(Template)]
-#[template(path = "about.html")]
-struct AboutTemplate;
-
 #[derive(Deserialize)]
 struct CreateSnippetForm {
     name: String,
@@ -77,10 +73,6 @@ struct CreateSnippetForm {
 
 async fn index() -> WebTemplate<IndexTemplate> {
     WebTemplate(IndexTemplate)
-}
-
-async fn about() -> WebTemplate<AboutTemplate> {
-    WebTemplate(AboutTemplate)
 }
 
 async fn view_snippet(
@@ -296,7 +288,6 @@ pub async fn run(host: String, port: u16) {
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/about", get(about))
         .route("/s/{short_id}", get(view_snippet))
         .route("/snippets", post(create_snippet))
         .merge(api_routes)

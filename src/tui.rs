@@ -2,7 +2,7 @@ use arboard::Clipboard;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal,
-    layout::{Constraint, Layout},
+    layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget},
@@ -33,6 +33,7 @@ struct App {
     focus: Focus,
     content_scroll: u16,
     show_help: bool,
+    confirm_delete: bool,
     syntax_set: SyntaxSet,
     theme: Theme,
     create_name: String,
@@ -60,6 +61,7 @@ impl App {
             focus: Focus::List,
             content_scroll: 0,
             show_help: false,
+            confirm_delete: false,
             syntax_set,
             theme,
             create_name: String::new(),
@@ -439,7 +441,6 @@ fn run_app(
                     let form_layout = Layout::vertical([
                         Constraint::Length(3),
                         Constraint::Min(1),
-                        Constraint::Length(1),
                     ])
                     .split(inner);
 
@@ -495,15 +496,6 @@ fn run_app(
                         _ => {}
                     }
 
-                    let hint = Paragraph::new(Line::from(vec![
-                        Span::styled("Tab", Style::default().fg(Color::Yellow)),
-                        Span::raw(" switch field  "),
-                        Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
-                        Span::raw(" save  "),
-                        Span::styled("Esc", Style::default().fg(Color::Yellow)),
-                        Span::raw(" cancel"),
-                    ]));
-                    frame.render_widget(hint, form_layout[2]);
                 }
                 _ => {
                     let highlighted = match app.selected_snippet() {
@@ -524,16 +516,94 @@ fn run_app(
                 }
             }
 
+            let hints = match app.focus {
+                Focus::List => Line::from(vec![
+                    Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Navigate  "),
+                    Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                    Span::raw(": View  "),
+                    Span::styled("y", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Copy  "),
+                    Span::styled("d", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Delete  "),
+                    Span::styled("c", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Create  "),
+                    Span::styled("?", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Help  "),
+                    Span::styled("q", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Quit"),
+                ]),
+                Focus::Content => Line::from(vec![
+                    Span::styled("j/k", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Scroll  "),
+                    Span::styled("y", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Copy  "),
+                    Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Back  "),
+                    Span::styled("?", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Help"),
+                ]),
+                Focus::CreateName | Focus::CreateContent => Line::from(vec![
+                    Span::styled("Tab", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Switch field  "),
+                    Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Save  "),
+                    Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Cancel"),
+                ]),
+            };
+            frame.render_widget(Paragraph::new(hints), outer[1]);
+
             if let Some((msg, _)) = &app.status_message {
-                let status = Paragraph::new(Text::raw(msg.as_str()))
-                    .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD));
-                frame.render_widget(status, outer[1]);
+                let area = frame.area();
+                let msg_width = (msg.len() as u16 + 4).max(20).min(area.width.saturating_sub(4));
+                let popup_area = ratatui::layout::Rect {
+                    x: (area.width.saturating_sub(msg_width)) / 2,
+                    y: (area.height.saturating_sub(3)) / 2,
+                    width: msg_width,
+                    height: 3,
+                };
+                Clear.render(popup_area, frame.buffer_mut());
+                let status_popup = Paragraph::new(Line::from(msg.as_str()))
+                    .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                    .alignment(Alignment::Center)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::Green)),
+                    );
+                frame.render_widget(status_popup, popup_area);
+            }
+
+            if app.confirm_delete {
+                let delete_msg = match app.selected_snippet() {
+                    Some(s) => format!("Delete {}? (y/n)", s.name),
+                    None => "Delete snippet? (y/n)".to_string(),
+                };
+                let area = frame.area();
+                let msg_width = (delete_msg.len() as u16 + 4).max(24).min(area.width.saturating_sub(4));
+                let popup_area = ratatui::layout::Rect {
+                    x: (area.width.saturating_sub(msg_width)) / 2,
+                    y: (area.height.saturating_sub(3)) / 2,
+                    width: msg_width,
+                    height: 3,
+                };
+                Clear.render(popup_area, frame.buffer_mut());
+                let confirm_popup = Paragraph::new(Line::from(delete_msg))
+                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                    .alignment(Alignment::Center)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::Red)),
+                    );
+                frame.render_widget(confirm_popup, popup_area);
             }
 
             if app.show_help {
                 let area = frame.area();
-                let popup_width = 44u16.min(area.width.saturating_sub(4));
-                let popup_height = 20u16.min(area.height.saturating_sub(4));
+                let popup_width = 34u16.min(area.width.saturating_sub(4));
+                let popup_height = 17u16.min(area.height.saturating_sub(4));
                 let popup_area = ratatui::layout::Rect {
                     x: (area.width.saturating_sub(popup_width)) / 2,
                     y: (area.height.saturating_sub(popup_height)) / 2,
@@ -681,6 +751,13 @@ fn run_app(
             if let Event::Key(key) = event::read()? {
                 if app.show_help {
                     app.show_help = false;
+                } else if app.status_message.is_some() {
+                    app.status_message = None;
+                } else if app.confirm_delete {
+                    if key.code == KeyCode::Char('y') {
+                        app.delete_selected(backend);
+                    }
+                    app.confirm_delete = false;
                 } else {
                     match app.focus {
                         Focus::List => match key.code {
@@ -689,7 +766,7 @@ fn run_app(
                             KeyCode::Char('k') | KeyCode::Up => app.move_up(),
                             KeyCode::Char('y') => app.copy_selected(),
                             KeyCode::Char('Y') => app.copy_link(),
-                            KeyCode::Char('d') => app.delete_selected(backend),
+                            KeyCode::Char('d') => app.confirm_delete = true,
                             KeyCode::Char('c') => app.start_create(),
                             KeyCode::Char('o') => app.open_in_browser(),
                             KeyCode::Char('r') if app.is_remote => app.refresh(backend),

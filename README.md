@@ -96,6 +96,7 @@ The server stores snippets in a local `sipp.sqlite` SQLite database.
 | `GET` | `/api/snippets` | List all snippets |
 | `POST` | `/api/snippets` | Create a snippet (`{"name": "...", "content": "..."}`) |
 | `GET` | `/api/snippets/{short_id}` | Get a snippet by ID |
+| `PUT` | `/api/snippets/{short_id}` | Update a snippet (`{"name": "...", "content": "..."}`) |
 | `DELETE` | `/api/snippets/{short_id}` | Delete a snippet by ID |
 
 Authenticated endpoints require an `x-api-key` header.
@@ -130,8 +131,10 @@ While inside the TUI the following actions are available
 | `y` | Copy snippet content |
 | `Y` | Copy snippet link |
 | `o` | Open in browser |
+| `e` | Edit snippet |
 | `d` | Delete snippet |
 | `c` | Create snippet |
+| `/` | Search snippets |
 | `r` | Refresh snippets (remote only) |
 | `q` | Quit |
 | `?` | Toggle help |

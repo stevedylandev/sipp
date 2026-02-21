@@ -115,7 +115,7 @@ To access a remote instance of Sipp make sure to do the following:
 - Set the `SIPP_API_KEY` variable in your server instance
 - Run `sipp auth` to enter in your server instance URL and the API key, which will be stored under `$HOME/.config/sipp`. You can also set these with the ENV variables `SIPP_REMOTE_URL` and `SIPP_API_KEY`
 
->![NOTE]
+>[!NOTE]
 >You can try a limited remote instance without an API key with `sipp -r https://sipp.so`
 
 #### Actions

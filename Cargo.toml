@@ -25,7 +25,7 @@ askama_web = { version = "0.15.1", features = ["axum-0.8"] }
 rusqlite = { version = "0.38", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 tower-http = { version = "0.6.8", features = ["fs"] }
-rand = "0.10"
+nanoid = "0.4.0"
 ratatui = "0.30"
 crossterm = "0.29"
 arboard = "3"

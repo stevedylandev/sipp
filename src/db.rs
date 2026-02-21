@@ -1,4 +1,4 @@
-use rand::RngExt;
+use nanoid::nanoid;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -37,13 +37,8 @@ pub struct Snippet {
     pub name: String,
 }
 
-const ALPHABET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 fn generate_short_id() -> String {
-    let mut rng = rand::rng();
-    (0..10)
-        .map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())] as char)
-        .collect()
+    nanoid!(10)
 }
 
 pub fn db_path() -> String {

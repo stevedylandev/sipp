@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget, Wrap},
 };
 use crate::backend::Backend;
 use crate::config;
@@ -46,6 +46,8 @@ struct App {
     filtered_indices: Option<Vec<usize>>,
     is_remote: bool,
     remote_url: Option<String>,
+    wrap_content: bool,
+    edit_scroll: u16,
 }
 
 impl App {
@@ -77,6 +79,8 @@ impl App {
             filtered_indices: None,
             is_remote,
             remote_url,
+            wrap_content: true,
+            edit_scroll: 0,
         }
     }
 
@@ -246,9 +250,57 @@ impl App {
         }
     }
 
+    fn cursor_position_wrapped(&self, width: u16) -> (u16, u16) {
+        let w = width as usize;
+        if w == 0 {
+            return (0, 0);
+        }
+        let text = &self.create_content;
+        let mut visual_row: usize = 0;
+        let lines: Vec<&str> = if text.is_empty() {
+            vec![""]
+        } else if text.ends_with('\n') {
+            text.split('\n').collect()
+        } else {
+            text.split('\n').collect()
+        };
+        let last_idx = lines.len() - 1;
+        for (i, line) in lines.iter().enumerate() {
+            let line_len = line.len();
+            let wrapped_lines = if line_len == 0 {
+                1
+            } else {
+                (line_len + w - 1) / w
+            };
+            if i < last_idx {
+                visual_row += wrapped_lines;
+            } else {
+                // cursor is at end of this last line
+                let cursor_col = if text.ends_with('\n') { 0 } else { line_len };
+                let extra_rows = cursor_col / w;
+                let col = cursor_col % w;
+                visual_row += extra_rows;
+                return (col as u16, visual_row as u16);
+            }
+        }
+        (0, visual_row as u16)
+    }
+
+    fn auto_scroll_edit(&mut self, cursor_visual_row: u16, visible_height: u16) {
+        if visible_height == 0 {
+            return;
+        }
+        if cursor_visual_row < self.edit_scroll {
+            self.edit_scroll = cursor_visual_row;
+        } else if cursor_visual_row >= self.edit_scroll + visible_height {
+            self.edit_scroll = cursor_visual_row - visible_height + 1;
+        }
+    }
+
     fn start_create(&mut self) {
         self.create_name.clear();
         self.create_content.clear();
+        self.edit_scroll = 0;
         self.focus = Focus::CreateName;
     }
 
@@ -288,6 +340,7 @@ impl App {
             self.create_name = name;
             self.create_content = content;
             self.edit_short_id = Some(short_id);
+            self.edit_scroll = 0;
             self.focus = Focus::EditName;
         }
     }
@@ -649,13 +702,23 @@ fn run_app(
                         Focus::CreateContent | Focus::EditContent => Style::default().fg(Color::Yellow),
                         _ => Style::default().fg(Color::DarkGray),
                     };
-                    let content_input = Paragraph::new(app.create_content.as_str()).block(
+                    let mut content_input = Paragraph::new(app.create_content.as_str()).block(
                         Block::default()
                             .title(" Content ")
                             .borders(Borders::ALL)
                             .border_style(content_style),
                     );
+                    if app.wrap_content {
+                        content_input = content_input.wrap(Wrap { trim: false });
+                    }
+                    content_input = content_input.scroll((app.edit_scroll, 0));
                     frame.render_widget(content_input, form_layout[1]);
+
+                    let content_inner = Block::default()
+                        .borders(Borders::ALL)
+                        .inner(form_layout[1]);
+                    let inner_width = content_inner.width;
+                    let inner_height = content_inner.height;
 
                     match app.focus {
                         Focus::CreateName | Focus::EditName => {
@@ -664,22 +727,24 @@ fn run_app(
                             frame.set_cursor_position((x, y));
                         }
                         Focus::CreateContent | Focus::EditContent => {
-                            let last_line = app.create_content.lines().last().unwrap_or("");
-                            let line_count = app.create_content.lines().count()
-                                + if app.create_content.ends_with('\n') {
-                                    1
-                                } else {
-                                    0
-                                };
-                            let y_offset = if line_count == 0 { 0 } else { line_count - 1 };
-                            let x = form_layout[1].x
-                                + 1
-                                + if app.create_content.ends_with('\n') {
+                            let (cx, cy) = if app.wrap_content {
+                                app.cursor_position_wrapped(inner_width)
+                            } else {
+                                let last_line = app.create_content.lines().last().unwrap_or("");
+                                let line_count = app.create_content.lines().count()
+                                    + if app.create_content.ends_with('\n') { 1 } else { 0 };
+                                let y_offset = if line_count == 0 { 0 } else { line_count - 1 };
+                                let col = if app.create_content.ends_with('\n') {
                                     0
                                 } else {
                                     last_line.len() as u16
                                 };
-                            let y = form_layout[1].y + 1 + y_offset as u16;
+                                (col, y_offset as u16)
+                            };
+                            app.auto_scroll_edit(cy, inner_height);
+                            let screen_y = cy.saturating_sub(app.edit_scroll);
+                            let x = content_inner.x + cx;
+                            let y = content_inner.y + screen_y;
                             frame.set_cursor_position((x, y));
                         }
                         _ => {}
@@ -744,6 +809,8 @@ fn run_app(
                     Span::raw(": Switch field  "),
                     Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
                     Span::raw(": Save  "),
+                    Span::styled("Ctrl+W", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Wrap  "),
                     Span::styled("Esc", Style::default().fg(Color::Yellow)),
                     Span::raw(": Cancel"),
                 ]),
@@ -807,7 +874,7 @@ fn run_app(
             if app.show_help {
                 let area = frame.area();
                 let popup_width = 34u16.min(area.width.saturating_sub(4));
-                let popup_height = 20u16.min(area.height.saturating_sub(4));
+                let popup_height = 21u16.min(area.height.saturating_sub(4));
                 let popup_area = ratatui::layout::Rect {
                     x: (area.width.saturating_sub(popup_width)) / 2,
                     y: (area.height.saturating_sub(popup_height)) / 2,
@@ -915,6 +982,15 @@ fn run_app(
                                 .add_modifier(Modifier::BOLD),
                         ),
                         Span::raw("Search snippets"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(
+                            "  ^W   ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw("Toggle word wrap (edit)"),
                     ]),
                 ];
 
@@ -1037,10 +1113,15 @@ fn run_app(
                             }
                         }
                         Focus::CreateContent => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL)
-                                && key.code == KeyCode::Char('s')
-                            {
-                                app.save_create(backend);
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                match key.code {
+                                    KeyCode::Char('s') => app.save_create(backend),
+                                    KeyCode::Char('w') => {
+                                        app.wrap_content = !app.wrap_content;
+                                        app.edit_scroll = 0;
+                                    }
+                                    _ => {}
+                                }
                             } else {
                                 match key.code {
                                     KeyCode::Esc => app.cancel_create(),
@@ -1074,10 +1155,15 @@ fn run_app(
                             }
                         }
                         Focus::EditContent => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL)
-                                && key.code == KeyCode::Char('s')
-                            {
-                                app.save_edit(backend);
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                match key.code {
+                                    KeyCode::Char('s') => app.save_edit(backend),
+                                    KeyCode::Char('w') => {
+                                        app.wrap_content = !app.wrap_content;
+                                        app.edit_scroll = 0;
+                                    }
+                                    _ => {}
+                                }
                             } else {
                                 match key.code {
                                     KeyCode::Esc => app.cancel_edit(),

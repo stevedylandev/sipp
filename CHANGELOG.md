@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Add changelog workflow
 - Update changelog
 - Added wrapping when creating inside tui
+- Update changelog
+- Replaced rand with nanoid
 
 ## [0.1.4] - 2026-02-21
 

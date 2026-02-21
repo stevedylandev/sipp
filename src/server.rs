@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     middleware::{self, Next},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use rust_embed::Embed;
 use serde::Deserialize;
@@ -36,7 +36,7 @@ impl ServerConfig {
         let auth_endpoints = match std::env::var("SIPP_AUTH_ENDPOINTS") {
             Ok(val) if val.trim().eq_ignore_ascii_case("none") => HashSet::new(),
             Ok(val) => val.split(',').map(|s| s.trim().to_lowercase()).collect(),
-            Err(_) => ["api_delete", "api_list"].iter().map(|s| s.to_string()).collect(),
+            Err(_) => ["api_delete", "api_list", "api_update"].iter().map(|s| s.to_string()).collect(),
         };
         ServerConfig { api_key, auth_endpoints }
     }
@@ -184,6 +184,18 @@ async fn api_delete_snippet(
     }
 }
 
+async fn api_update_snippet(
+    State(state): State<AppState>,
+    Path(short_id): Path<String>,
+    Json(body): Json<ApiCreateSnippet>,
+) -> Result<Json<Snippet>, (StatusCode, Json<serde_json::Value>)> {
+    match db::update_snippet_by_short_id(&state.db, &short_id, &body.name, &body.content) {
+        Ok(Some(snippet)) => Ok(Json(snippet)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"})))),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
+    }
+}
+
 fn build_api_routes(state: &AppState) -> Router<AppState> {
     let config = &state.server_config;
 
@@ -193,8 +205,9 @@ fn build_api_routes(state: &AppState) -> Router<AppState> {
     let list_authed = config.requires_auth("api_list");
     let create_authed = config.requires_auth("api_create");
 
-    // /api/snippets/{short_id} — GET (api_get) and DELETE (api_delete)
+    // /api/snippets/{short_id} — GET (api_get), PUT (api_update), and DELETE (api_delete)
     let get_authed = config.requires_auth("api_get");
+    let update_authed = config.requires_auth("api_update");
     let delete_authed = config.requires_auth("api_delete");
 
     // Build authed router
@@ -207,6 +220,9 @@ fn build_api_routes(state: &AppState) -> Router<AppState> {
     }
     if get_authed {
         authed = authed.route("/api/snippets/{short_id}", get(api_get_snippet));
+    }
+    if update_authed {
+        authed = authed.route("/api/snippets/{short_id}", put(api_update_snippet));
     }
     if delete_authed {
         authed = authed.route("/api/snippets/{short_id}", delete(api_delete_snippet));
@@ -223,6 +239,9 @@ fn build_api_routes(state: &AppState) -> Router<AppState> {
     }
     if !get_authed {
         open = open.route("/api/snippets/{short_id}", get(api_get_snippet));
+    }
+    if !update_authed {
+        open = open.route("/api/snippets/{short_id}", put(api_update_snippet));
     }
     if !delete_authed {
         open = open.route("/api/snippets/{short_id}", delete(api_delete_snippet));
@@ -275,7 +294,7 @@ pub async fn run(host: String, port: u16) {
     let server_config = ServerConfig::from_env();
 
     // Validate endpoint names
-    let known = ["api_list", "api_create", "api_get", "api_delete", "all", "none"];
+    let known = ["api_list", "api_create", "api_get", "api_update", "api_delete", "all", "none"];
     for name in &server_config.auth_endpoints {
         if !known.contains(&name.as_str()) {
             eprintln!("Warning: unknown auth endpoint name '{}' in SIPP_AUTH_ENDPOINTS", name);

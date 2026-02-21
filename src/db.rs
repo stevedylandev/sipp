@@ -121,3 +121,35 @@ pub fn delete_snippet_by_short_id(db: &Db, short_id: &str) -> Result<bool, DbErr
     )?;
     Ok(rows_affected > 0)
 }
+
+pub fn update_snippet_by_short_id(
+    db: &Db,
+    short_id: &str,
+    name: &str,
+    content: &str,
+) -> Result<Option<Snippet>, DbError> {
+    let conn = db.lock().map_err(|_| DbError::LockPoisoned)?;
+    let rows_affected = conn.execute(
+        "UPDATE snippets SET name = ?1, content = ?2 WHERE short_id = ?3",
+        params![name, content, short_id],
+    )?;
+    if rows_affected == 0 {
+        return Ok(None);
+    }
+    match conn.query_row(
+        "SELECT id, short_id, content, name FROM snippets WHERE short_id = ?1",
+        params![short_id],
+        |row| {
+            Ok(Snippet {
+                id: row.get(0)?,
+                short_id: row.get(1)?,
+                content: row.get(2)?,
+                name: row.get(3)?,
+            })
+        },
+    ) {
+        Ok(snippet) => Ok(Some(snippet)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(DbError::Sqlite(e)),
+    }
+}

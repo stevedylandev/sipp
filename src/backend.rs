@@ -104,6 +104,40 @@ impl Backend {
         }
     }
 
+    pub fn update_snippet(
+        &self,
+        short_id: &str,
+        name: &str,
+        content: &str,
+    ) -> Result<Option<Snippet>, BackendError> {
+        match self {
+            Backend::Local { db } => Ok(db::update_snippet_by_short_id(db, short_id, name, content)?),
+            Backend::Remote {
+                base_url,
+                api_key,
+                client,
+            } => {
+                let mut req = client
+                    .put(format!("{}/api/snippets/{}", base_url, short_id))
+                    .json(&serde_json::json!({"name": name, "content": content}));
+                if let Some(key) = api_key {
+                    req = req.header("x-api-key", key);
+                }
+                let resp = req.send().map_err(|e| BackendError::Network(e.to_string()))?;
+                match resp.status().as_u16() {
+                    200 => resp
+                        .json::<Snippet>()
+                        .map(Some)
+                        .map_err(|e| BackendError::Network(e.to_string())),
+                    401 => Err(BackendError::Unauthorized("Invalid API key".into())),
+                    403 => Err(BackendError::Unauthorized("No API key configured on server".into())),
+                    404 => Ok(None),
+                    _ => Err(BackendError::Network(format!("HTTP {}", resp.status()))),
+                }
+            }
+        }
+    }
+
     pub fn delete_snippet(&self, short_id: &str) -> Result<bool, BackendError> {
         match self {
             Backend::Local { db } => Ok(db::delete_snippet_by_short_id(db, short_id)?),

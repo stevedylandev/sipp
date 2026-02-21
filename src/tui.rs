@@ -23,6 +23,9 @@ enum Focus {
     Content,
     CreateName,
     CreateContent,
+    EditName,
+    EditContent,
+    Search,
 }
 
 struct App {
@@ -38,6 +41,9 @@ struct App {
     theme: Theme,
     create_name: String,
     create_content: String,
+    edit_short_id: Option<String>,
+    search_query: String,
+    filtered_indices: Option<Vec<usize>>,
     is_remote: bool,
     remote_url: Option<String>,
 }
@@ -66,22 +72,39 @@ impl App {
             theme,
             create_name: String::new(),
             create_content: String::new(),
+            edit_short_id: None,
+            search_query: String::new(),
+            filtered_indices: None,
             is_remote,
             remote_url,
         }
     }
 
     fn selected_snippet(&self) -> Option<&Snippet> {
-        self.list_state.selected().and_then(|i| self.snippets.get(i))
+        self.list_state.selected().and_then(|i| {
+            if let Some(indices) = &self.filtered_indices {
+                indices.get(i).and_then(|&real| self.snippets.get(real))
+            } else {
+                self.snippets.get(i)
+            }
+        })
+    }
+
+    fn visible_count(&self) -> usize {
+        match &self.filtered_indices {
+            Some(indices) => indices.len(),
+            None => self.snippets.len(),
+        }
     }
 
     fn move_up(&mut self) {
-        if self.snippets.is_empty() {
+        let count = self.visible_count();
+        if count == 0 {
             return;
         }
         let i = match self.list_state.selected() {
             Some(i) if i > 0 => i - 1,
-            Some(_) => self.snippets.len() - 1,
+            Some(_) => count - 1,
             None => 0,
         };
         self.list_state.select(Some(i));
@@ -89,11 +112,12 @@ impl App {
     }
 
     fn move_down(&mut self) {
-        if self.snippets.is_empty() {
+        let count = self.visible_count();
+        if count == 0 {
             return;
         }
         let i = match self.list_state.selected() {
-            Some(i) if i < self.snippets.len() - 1 => i + 1,
+            Some(i) if i < count - 1 => i + 1,
             Some(_) => 0,
             None => 0,
         };
@@ -162,15 +186,27 @@ impl App {
 
     fn delete_selected(&mut self, backend: &Backend) {
         if let Some(selected_index) = self.list_state.selected() {
-            if let Some(snippet) = self.snippets.get(selected_index) {
+            let real_index = if let Some(indices) = &self.filtered_indices {
+                match indices.get(selected_index) {
+                    Some(&ri) => ri,
+                    None => return,
+                }
+            } else {
+                selected_index
+            };
+            if let Some(snippet) = self.snippets.get(real_index) {
                 let short_id = snippet.short_id.clone();
                 match backend.delete_snippet(&short_id) {
                     Ok(true) => {
-                        self.snippets.remove(selected_index);
-                        if self.snippets.is_empty() {
+                        self.snippets.remove(real_index);
+                        if self.filtered_indices.is_some() {
+                            self.update_search_filter();
+                        }
+                        let count = self.visible_count();
+                        if count == 0 {
                             self.list_state.select(None);
-                        } else if selected_index >= self.snippets.len() {
-                            self.list_state.select(Some(self.snippets.len() - 1));
+                        } else if selected_index >= count {
+                            self.list_state.select(Some(count - 1));
                         } else {
                             self.list_state.select(Some(selected_index));
                         }
@@ -192,6 +228,8 @@ impl App {
         match backend.list_snippets() {
             Ok(snippets) => {
                 self.snippets = snippets;
+                self.filtered_indices = None;
+                self.search_query.clear();
                 if self.snippets.is_empty() {
                     self.list_state.select(None);
                 } else {
@@ -223,6 +261,8 @@ impl App {
             Ok(snippet) => {
                 self.snippets.insert(0, snippet);
                 self.list_state.select(Some(0));
+                self.filtered_indices = None;
+                self.search_query.clear();
                 self.status_message = Some(("Created!".to_string(), Instant::now()));
                 self.focus = Focus::List;
                 self.create_name.clear();
@@ -238,6 +278,96 @@ impl App {
         self.create_name.clear();
         self.create_content.clear();
         self.focus = Focus::List;
+    }
+
+    fn start_edit(&mut self) {
+        let data = self.selected_snippet().map(|s| {
+            (s.name.clone(), s.content.clone(), s.short_id.clone())
+        });
+        if let Some((name, content, short_id)) = data {
+            self.create_name = name;
+            self.create_content = content;
+            self.edit_short_id = Some(short_id);
+            self.focus = Focus::EditName;
+        }
+    }
+
+    fn save_edit(&mut self, backend: &Backend) {
+        if self.create_name.trim().is_empty() {
+            self.status_message = Some(("Name cannot be empty".to_string(), Instant::now()));
+            return;
+        }
+        let short_id = match &self.edit_short_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+        match backend.update_snippet(&short_id, &self.create_name, &self.create_content) {
+            Ok(Some(updated)) => {
+                if let Some(pos) = self.snippets.iter().position(|s| s.short_id == short_id) {
+                    self.snippets[pos] = updated;
+                }
+                self.status_message = Some(("Updated!".to_string(), Instant::now()));
+                self.focus = Focus::List;
+                self.create_name.clear();
+                self.create_content.clear();
+                self.edit_short_id = None;
+            }
+            Ok(None) => {
+                self.status_message = Some(("Snippet not found".to_string(), Instant::now()));
+            }
+            Err(e) => {
+                self.status_message = Some((e.to_string(), Instant::now()));
+            }
+        }
+    }
+
+    fn cancel_edit(&mut self) {
+        self.create_name.clear();
+        self.create_content.clear();
+        self.edit_short_id = None;
+        self.focus = Focus::List;
+    }
+
+    fn start_search(&mut self) {
+        self.search_query.clear();
+        self.filtered_indices = Some((0..self.snippets.len()).collect());
+        self.focus = Focus::Search;
+        self.list_state.select(if self.snippets.is_empty() { None } else { Some(0) });
+    }
+
+    fn update_search_filter(&mut self) {
+        let query = self.search_query.to_lowercase();
+        let indices: Vec<usize> = self
+            .snippets
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.name.to_lowercase().contains(&query))
+            .map(|(i, _)| i)
+            .collect();
+        self.filtered_indices = Some(indices);
+        if self.visible_count() == 0 {
+            self.list_state.select(None);
+        } else {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    fn cancel_search(&mut self) {
+        self.filtered_indices = None;
+        self.search_query.clear();
+        self.focus = Focus::List;
+    }
+
+    fn confirm_search(&mut self) {
+        let real_index = self.list_state.selected().and_then(|i| {
+            self.filtered_indices.as_ref().and_then(|indices| indices.get(i).copied())
+        });
+        self.filtered_indices = None;
+        self.search_query.clear();
+        self.focus = Focus::List;
+        if let Some(ri) = real_index {
+            self.list_state.select(Some(ri));
+        }
     }
 
     fn clear_expired_status(&mut self) {
@@ -401,14 +531,21 @@ fn run_app(
             ])
             .split(outer[0]);
 
-            let items: Vec<ListItem> = app
-                .snippets
-                .iter()
-                .map(|s| ListItem::new(s.name.as_str()))
-                .collect();
+            let items: Vec<ListItem> = if let Some(indices) = &app.filtered_indices {
+                indices
+                    .iter()
+                    .filter_map(|&i| app.snippets.get(i))
+                    .map(|s| ListItem::new(s.name.as_str()))
+                    .collect()
+            } else {
+                app.snippets
+                    .iter()
+                    .map(|s| ListItem::new(s.name.as_str()))
+                    .collect()
+            };
 
             let list_border_style = match app.focus {
-                Focus::List => Style::default().fg(Color::Yellow),
+                Focus::List | Focus::Search => Style::default().fg(Color::Yellow),
                 _ => Style::default().fg(Color::DarkGray),
             };
             let content_border_style = match app.focus {
@@ -430,12 +567,60 @@ fn run_app(
                 )
                 .highlight_symbol("▶ ");
 
-            frame.render_stateful_widget(list, chunks[0], &mut app.list_state);
+            if matches!(app.focus, Focus::Search) {
+                let search_split = Layout::vertical([
+                    Constraint::Min(1),
+                    Constraint::Length(3),
+                ])
+                .split(chunks[0]);
+
+                let search_items: Vec<ListItem> = if let Some(indices) = &app.filtered_indices {
+                    indices
+                        .iter()
+                        .filter_map(|&i| app.snippets.get(i))
+                        .map(|s| ListItem::new(s.name.as_str()))
+                        .collect()
+                } else {
+                    app.snippets.iter().map(|s| ListItem::new(s.name.as_str())).collect()
+                };
+                let search_list = List::new(search_items)
+                .block(
+                    Block::default()
+                        .title(" Snippets ")
+                        .borders(Borders::ALL)
+                        .border_style(list_border_style),
+                )
+                .highlight_style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+                frame.render_stateful_widget(search_list, search_split[0], &mut app.list_state);
+
+                let search_input = Paragraph::new(app.search_query.as_str()).block(
+                    Block::default()
+                        .title(" Search ")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::Yellow)),
+                );
+                frame.render_widget(search_input, search_split[1]);
+
+                let x = search_split[1].x + 1 + app.search_query.len() as u16;
+                let y = search_split[1].y + 1;
+                frame.set_cursor_position((x, y));
+            } else {
+                frame.render_stateful_widget(list, chunks[0], &mut app.list_state);
+            }
 
             match app.focus {
-                Focus::CreateName | Focus::CreateContent => {
+                Focus::CreateName | Focus::CreateContent | Focus::EditName | Focus::EditContent => {
+                    let form_title = match app.focus {
+                        Focus::EditName | Focus::EditContent => " Edit Snippet ",
+                        _ => " New Snippet ",
+                    };
                     let create_block = Block::default()
-                        .title(" New Snippet ")
+                        .title(form_title)
                         .borders(Borders::ALL)
                         .border_style(Style::default().fg(Color::Yellow));
 
@@ -449,7 +634,7 @@ fn run_app(
                     .split(inner);
 
                     let name_style = match app.focus {
-                        Focus::CreateName => Style::default().fg(Color::Yellow),
+                        Focus::CreateName | Focus::EditName => Style::default().fg(Color::Yellow),
                         _ => Style::default().fg(Color::DarkGray),
                     };
                     let name_input = Paragraph::new(app.create_name.as_str()).block(
@@ -461,7 +646,7 @@ fn run_app(
                     frame.render_widget(name_input, form_layout[0]);
 
                     let content_style = match app.focus {
-                        Focus::CreateContent => Style::default().fg(Color::Yellow),
+                        Focus::CreateContent | Focus::EditContent => Style::default().fg(Color::Yellow),
                         _ => Style::default().fg(Color::DarkGray),
                     };
                     let content_input = Paragraph::new(app.create_content.as_str()).block(
@@ -473,12 +658,12 @@ fn run_app(
                     frame.render_widget(content_input, form_layout[1]);
 
                     match app.focus {
-                        Focus::CreateName => {
+                        Focus::CreateName | Focus::EditName => {
                             let x = form_layout[0].x + 1 + app.create_name.len() as u16;
                             let y = form_layout[0].y + 1;
                             frame.set_cursor_position((x, y));
                         }
-                        Focus::CreateContent => {
+                        Focus::CreateContent | Focus::EditContent => {
                             let last_line = app.create_content.lines().last().unwrap_or("");
                             let line_count = app.create_content.lines().count()
                                 + if app.create_content.ends_with('\n') {
@@ -528,10 +713,14 @@ fn run_app(
                     Span::raw(": View  "),
                     Span::styled("y", Style::default().fg(Color::Yellow)),
                     Span::raw(": Copy  "),
+                    Span::styled("e", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Edit  "),
                     Span::styled("d", Style::default().fg(Color::Yellow)),
                     Span::raw(": Delete  "),
                     Span::styled("c", Style::default().fg(Color::Yellow)),
                     Span::raw(": Create  "),
+                    Span::styled("/", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Search  "),
                     Span::styled("?", Style::default().fg(Color::Yellow)),
                     Span::raw(": Help  "),
                     Span::styled("q", Style::default().fg(Color::Yellow)),
@@ -542,16 +731,27 @@ fn run_app(
                     Span::raw(": Scroll  "),
                     Span::styled("y", Style::default().fg(Color::Yellow)),
                     Span::raw(": Copy  "),
+                    Span::styled("e", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Edit  "),
                     Span::styled("Esc", Style::default().fg(Color::Yellow)),
                     Span::raw(": Back  "),
                     Span::styled("?", Style::default().fg(Color::Yellow)),
                     Span::raw(": Help"),
                 ]),
-                Focus::CreateName | Focus::CreateContent => Line::from(vec![
+                Focus::CreateName | Focus::CreateContent
+                | Focus::EditName | Focus::EditContent => Line::from(vec![
                     Span::styled("Tab", Style::default().fg(Color::Yellow)),
                     Span::raw(": Switch field  "),
                     Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
                     Span::raw(": Save  "),
+                    Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Cancel"),
+                ]),
+                Focus::Search => Line::from(vec![
+                    Span::styled("Type", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Filter  "),
+                    Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                    Span::raw(": Select  "),
                     Span::styled("Esc", Style::default().fg(Color::Yellow)),
                     Span::raw(": Cancel"),
                 ]),
@@ -607,7 +807,7 @@ fn run_app(
             if app.show_help {
                 let area = frame.area();
                 let popup_width = 34u16.min(area.width.saturating_sub(4));
-                let popup_height = 17u16.min(area.height.saturating_sub(4));
+                let popup_height = 20u16.min(area.height.saturating_sub(4));
                 let popup_area = ratatui::layout::Rect {
                     x: (area.width.saturating_sub(popup_width)) / 2,
                     y: (area.height.saturating_sub(popup_height)) / 2,
@@ -698,6 +898,24 @@ fn run_app(
                         ),
                         Span::raw("Create snippet"),
                     ]),
+                    Line::from(vec![
+                        Span::styled(
+                            "  e    ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw("Edit snippet"),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(
+                            "  /    ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw("Search snippets"),
+                    ]),
                 ];
 
                 if app.is_remote {
@@ -772,6 +990,8 @@ fn run_app(
                             KeyCode::Char('Y') => app.copy_link(),
                             KeyCode::Char('d') => app.confirm_delete = true,
                             KeyCode::Char('c') => app.start_create(),
+                            KeyCode::Char('e') => app.start_edit(),
+                            KeyCode::Char('/') => app.start_search(),
                             KeyCode::Char('o') => app.open_in_browser(),
                             KeyCode::Char('r') if app.is_remote => app.refresh(backend),
                             KeyCode::Char('?') => app.show_help = true,
@@ -792,6 +1012,7 @@ fn run_app(
                             KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
                             KeyCode::Char('y') => app.copy_selected(),
                             KeyCode::Char('Y') => app.copy_link(),
+                            KeyCode::Char('e') => app.start_edit(),
                             KeyCode::Char('o') => app.open_in_browser(),
                             KeyCode::Char('?') => app.show_help = true,
                             _ => {}
@@ -833,6 +1054,56 @@ fn run_app(
                                 }
                             }
                         }
+                        Focus::EditName => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL)
+                                && key.code == KeyCode::Char('s')
+                            {
+                                app.save_edit(backend);
+                            } else {
+                                match key.code {
+                                    KeyCode::Esc => app.cancel_edit(),
+                                    KeyCode::Enter | KeyCode::Tab => {
+                                        app.focus = Focus::EditContent
+                                    }
+                                    KeyCode::Backspace => {
+                                        app.create_name.pop();
+                                    }
+                                    KeyCode::Char(c) => app.create_name.push(c),
+                                    _ => {}
+                                }
+                            }
+                        }
+                        Focus::EditContent => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL)
+                                && key.code == KeyCode::Char('s')
+                            {
+                                app.save_edit(backend);
+                            } else {
+                                match key.code {
+                                    KeyCode::Esc => app.cancel_edit(),
+                                    KeyCode::Tab => app.focus = Focus::EditName,
+                                    KeyCode::Enter => app.create_content.push('\n'),
+                                    KeyCode::Backspace => {
+                                        app.create_content.pop();
+                                    }
+                                    KeyCode::Char(c) => app.create_content.push(c),
+                                    _ => {}
+                                }
+                            }
+                        }
+                        Focus::Search => match key.code {
+                            KeyCode::Esc => app.cancel_search(),
+                            KeyCode::Enter => app.confirm_search(),
+                            KeyCode::Backspace => {
+                                app.search_query.pop();
+                                app.update_search_filter();
+                            }
+                            KeyCode::Char(c) => {
+                                app.search_query.push(c);
+                                app.update_search_filter();
+                            }
+                            _ => {}
+                        },
                     }
                 }
             }

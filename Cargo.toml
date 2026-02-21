@@ -39,3 +39,8 @@ open = "5.3.3"
 rust-embed = "8"
 dotenvy = "0.15"
 subtle = "2"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

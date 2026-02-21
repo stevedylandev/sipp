@@ -2,18 +2,26 @@
 
 ![cover](https://files.stevedylan.dev/sipp-rust.png)
 
-Minimal code sharing in Rust
+Minimal code sharing
 
 ## Features
 
-- Single binary for Server, CLI, and TUI
-- Web UI to create, copy, and share code snippets with syntax highlighting
+- Single binary for web server and TUI
+- Create snippets and share on the web
 - Interactive TUI with authenticated access for snippet management
 - Minimal, fast, and low memory consumption
 
+## Demo
+
+Try it out at [sipp.so](https://sipp.so) or install and use the TUI
+
+```bash
+sipp -r https://sipp.so
+```
+
 ## Quickstart
 
-**1. Install with Cargo**
+**1. Installo**
 
 Install the binary from Crates.io
 
@@ -47,7 +55,23 @@ sipp path/to/file.rs
 sipp
 ```
 
-## Server
+## Install
+
+Sipp can be installed several ways
+
+### Cargo
+Install with Cargo directly 
+
+```bash
+cargo install sipp-so
+```
+
+### GitHub Releases
+Visit the [releases](https://github.com/stevedylandev/sipp/releases) page and download one of the prebuilt binaries
+
+## Usage
+
+### Server
 
 Sipp includes a built-in web server powered by Axum. Start it with:
 
@@ -55,7 +79,7 @@ Sipp includes a built-in web server powered by Axum. Start it with:
 sipp server --port 3000 --host localhost
 ```
 
-### Environment Variables
+#### Environment Variables
 
 | Variable | Description |
 |---|---|
@@ -65,7 +89,7 @@ sipp server --port 3000 --host localhost
 
 The server stores snippets in a local `sipp.sqlite` SQLite database.
 
-### API Endpoints
+#### API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -76,29 +100,26 @@ The server stores snippets in a local `sipp.sqlite` SQLite database.
 
 Authenticated endpoints require an `x-api-key` header.
 
-## Web UI
+### TUI
 
-The server serves a web interface at the root URL where you can create, view, and share code snippets with syntax highlighting. Each snippet gets a shareable link at `/s/{short_id}`.
+The Sipp TUI makes it easy to create, copy, share, and manage your snippets either locally or remotely.
 
-## CLI
+#### Local Access
 
-Upload a file directly from the command line:
+If you are running `sipp` in the same directory as the `sipp.sqlite` file created by the server instance, the TUI will automatically access the datebase locally and you can edit it directly.
 
-```bash
-sipp path/to/file.rs
-```
+#### Remote Access
 
-This creates a snippet and prints the shareable link (also copied to clipboard).
+To access a remote instance of Sipp make sure to do the following:
+- Set the `SIPP_API_KEY` variable in your server instance
+- Run `sipp auth` to enter in your server instance URL and the API key, which will be stored under `$HOME/.config/sipp`. You can also set these with the ENV variables `SIPP_REMOTE_URL` and `SIPP_API_KEY`
 
-## TUI
+>![NOTE]
+>You can try a limited remote instance without an API key with `sipp -r https://sipp.so`
 
-Launch the interactive terminal UI:
+#### Actions
 
-```bash
-sipp
-```
-
-### Keybindings
+While inside the TUI the following actions are available
 
 | Key | Action |
 |---|---|
@@ -115,24 +136,9 @@ sipp
 | `q` | Quit |
 | `?` | Toggle help |
 
-## Configuration
-
-Save your remote URL and API key to `~/.config/sipp/config.toml` so you can access your sipp db anywhere:
-
-```bash
-sipp auth
-```
-
-You can also pass these as flags or environment variables:
-
-```bash
-sipp --remote http://your-server.com --api-key YOUR_KEY
-# or
-export SIPP_REMOTE_URL=http://your-server.com
-export SIPP_API_KEY=YOUR_KEY
-```
-
 ## Deployment
+
+Since Sipp is a single binary it can be run in virtually any enviornment.
 
 ### Systemd
 
@@ -176,3 +182,5 @@ docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 2. Set the environment variables `SIPP_API_KEY` and optionally `SIPP_AUTH_ENDPOINTS`
 3. Add a [volume](https://docs.railway.com/guides/volumes) to your service and mount it at `/data`
 4. Set `SIPP_DB_PATH` to `/data/sipp.sqlite` so the database persists across deploys
+
+## Roadmap

@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous
 
 - Add changelog workflow
+- Update changelog
+- Added wrapping when creating inside tui
 
 ## [0.1.4] - 2026-02-21
 

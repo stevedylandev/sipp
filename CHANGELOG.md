@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Miscellaneous
+
+- Add changelog workflow
+
+## [0.1.4] - 2026-02-21
+
+### Miscellaneous
+
+- Added db path env
+- Update README
+- Update readme
+- Update readme
+- Update readme
+- Added max file size and plain text response for curl
+- Updated workflows
+- Version bump
+
 ## [0.1.3] - 2026-02-21
 
 ### Miscellaneous

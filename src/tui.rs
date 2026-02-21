@@ -427,7 +427,7 @@ fn resolve_backend(remote: Option<String>, api_key: Option<String>) -> Result<(B
         ));
     }
 
-    if !std::path::Path::new("sipp.sqlite").exists() {
+    if !std::path::Path::new(&crate::db::db_path()).exists() {
         let cfg = config::load_config();
         let url = cfg.remote_url.unwrap_or_else(|| "http://localhost:3000".to_string());
         let api_key = api_key.or(cfg.api_key);

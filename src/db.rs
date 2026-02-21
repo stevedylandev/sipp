@@ -46,8 +46,12 @@ fn generate_short_id() -> String {
         .collect()
 }
 
+pub fn db_path() -> String {
+    std::env::var("SIPP_DB_PATH").unwrap_or_else(|_| "sipp.sqlite".to_string())
+}
+
 pub fn init_db() -> Result<Db, DbError> {
-    let conn = Connection::open("sipp.sqlite")?;
+    let conn = Connection::open(db_path())?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS snippets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

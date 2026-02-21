@@ -61,6 +61,7 @@ sipp server --port 3000 --host localhost
 |---|---|
 | `SIPP_API_KEY` | API key for protecting endpoints |
 | `SIPP_AUTH_ENDPOINTS` | Comma-separated list of endpoints requiring auth: `api_list`, `api_create`, `api_get`, `api_delete`, `all`, or `none` (defaults to `api_delete,api_list`) |
+| `SIPP_DB_PATH` | Custom path for the SQLite database file (defaults to `sipp.sqlite` in the working directory) |
 
 The server stores snippets in a local `sipp.sqlite` SQLite database.
 
@@ -173,3 +174,5 @@ docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 
 1. Connect your repository to [Railway](https://railway.app)
 2. Set the environment variables `SIPP_API_KEY` and optionally `SIPP_AUTH_ENDPOINTS`
+3. Add a [volume](https://docs.railway.com/guides/volumes) to your service and mount it at `/data`
+4. Set `SIPP_DB_PATH` to `/data/sipp.sqlite` so the database persists across deploys

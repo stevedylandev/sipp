@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-02-21
+
+### Miscellaneous
+
+- Update readme
+- Update readme
+- Added update and search
+- Version bump
+
 ## [0.1.2] - 2026-02-20
 
 ### Bug Fixes

@@ -71,6 +71,33 @@ Visit the [releases](https://github.com/stevedylandev/sipp/releases) page and do
 
 ## Usage
 
+### CLI
+
+```
+sipp [OPTIONS] [FILE] [COMMAND]
+```
+
+#### Commands
+
+| Command | Description |
+|---|---|
+| `server` | Start the web server |
+| `tui` | Launch the interactive TUI |
+| `auth` | Save remote URL and API key to config file |
+
+#### Arguments
+
+| Argument | Description |
+|---|---|
+| `[FILE]` | File path to create a snippet from |
+
+#### Options
+
+| Option | Description |
+|---|---|
+| `-r, --remote <URL>` | Remote server URL (e.g. `http://localhost:3000`) (env: `SIPP_REMOTE_URL`) |
+| `-k, --api-key <KEY>` | API key for authenticated operations (env: `SIPP_API_KEY`) |
+
 ### Server
 
 Sipp includes a built-in web server powered by Axum. Start it with:
@@ -103,7 +130,18 @@ Authenticated endpoints require an `x-api-key` header.
 
 ### TUI
 
-The Sipp TUI makes it easy to create, copy, share, and manage your snippets either locally or remotely.
+The Sipp TUI makes it easy to create, copy, share, and manage your snippets either locally or remotely. Launch it with:
+
+```bash
+# Launch TUI (default behavior when no file argument is given)
+sipp
+
+# Or explicitly
+sipp tui
+
+# With remote options
+sipp -r https://sipp.so -k your-api-key
+```
 
 #### Local Access
 
@@ -185,5 +223,3 @@ docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 2. Set the environment variables `SIPP_API_KEY` and optionally `SIPP_AUTH_ENDPOINTS`
 3. Add a [volume](https://docs.railway.com/guides/volumes) to your service and mount it at `/data`
 4. Set `SIPP_DB_PATH` to `/data/sipp.sqlite` so the database persists across deploys
-
-## Roadmap

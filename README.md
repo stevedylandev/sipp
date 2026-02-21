@@ -8,6 +8,7 @@ Minimal code sharing
 
 - Single binary for web server and TUI
 - Create snippets and share on the web
+- Raw output for CLI tools — `curl`, `wget`, and `httpie` get plain text automatically
 - Interactive TUI with authenticated access for snippet management
 - Minimal, fast, and low memory consumption
 
@@ -112,6 +113,7 @@ sipp server --port 3000 --host localhost
 |---|---|
 | `SIPP_API_KEY` | API key for protecting endpoints |
 | `SIPP_AUTH_ENDPOINTS` | Comma-separated list of endpoints requiring auth: `api_list`, `api_create`, `api_get`, `api_delete`, `all`, or `none` (defaults to `api_delete,api_list`) |
+| `SIPP_MAX_CONTENT_SIZE` | Maximum snippet content size in bytes (defaults to `512000` / 500 KB) |
 | `SIPP_DB_PATH` | Custom path for the SQLite database file (defaults to `sipp.sqlite` in the working directory) |
 
 The server stores snippets in a local `sipp.sqlite` SQLite database.
@@ -127,6 +129,14 @@ The server stores snippets in a local `sipp.sqlite` SQLite database.
 | `DELETE` | `/api/snippets/{short_id}` | Delete a snippet by ID |
 
 Authenticated endpoints require an `x-api-key` header.
+
+#### Raw Output for CLI Tools
+
+When you access a snippet URL (`/s/{short_id}`) with `curl`, `wget`, or `httpie`, the server returns the raw content as plain text instead of HTML:
+
+```bash
+curl https://sipp.so/s/abc123
+```
 
 ### TUI
 

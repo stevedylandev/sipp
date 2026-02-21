@@ -28,6 +28,7 @@ struct Static;
 struct ServerConfig {
     api_key: Option<String>,
     auth_endpoints: HashSet<String>,
+    max_content_size: usize,
 }
 
 impl ServerConfig {
@@ -38,7 +39,11 @@ impl ServerConfig {
             Ok(val) => val.split(',').map(|s| s.trim().to_lowercase()).collect(),
             Err(_) => ["api_delete", "api_list", "api_update"].iter().map(|s| s.to_string()).collect(),
         };
-        ServerConfig { api_key, auth_endpoints }
+        let max_content_size = std::env::var("SIPP_MAX_CONTENT_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(512_000);
+        ServerConfig { api_key, auth_endpoints, max_content_size }
     }
 
     fn requires_auth(&self, name: &str) -> bool {
@@ -75,18 +80,40 @@ async fn index() -> WebTemplate<IndexTemplate> {
     WebTemplate(IndexTemplate)
 }
 
+fn is_cli_user_agent(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|ua| {
+            let ua = ua.to_lowercase();
+            ua.starts_with("curl/") || ua.starts_with("wget/") || ua.starts_with("httpie/")
+        })
+        .unwrap_or(false)
+}
+
 async fn view_snippet(
     State(state): State<AppState>,
     Path(short_id): Path<String>,
-) -> Result<WebTemplate<SnippetTemplate>, (StatusCode, Html<String>)> {
+    headers: HeaderMap,
+) -> Result<Response, (StatusCode, Html<String>)> {
     match db::get_snippet_by_short_id(&state.db, &short_id) {
         Ok(Some(snippet)) => {
-            let highlighted_content = state.highlighter.highlight(&snippet.name, &snippet.content);
-            Ok(WebTemplate(SnippetTemplate {
-                name: snippet.name,
-                content: snippet.content,
-                highlighted_content,
-            }))
+            if is_cli_user_agent(&headers) {
+                Ok((
+                    [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+                    snippet.content,
+                )
+                    .into_response())
+            } else {
+                let highlighted_content =
+                    state.highlighter.highlight(&snippet.name, &snippet.content);
+                Ok(WebTemplate(SnippetTemplate {
+                    name: snippet.name,
+                    content: snippet.content,
+                    highlighted_content,
+                })
+                .into_response())
+            }
         }
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -103,6 +130,15 @@ async fn create_snippet(
     State(state): State<AppState>,
     Form(form): Form<CreateSnippetForm>,
 ) -> Result<Redirect, (StatusCode, Html<String>)> {
+    if form.content.len() > state.server_config.max_content_size {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Html(format!(
+                "<h1>Content too large</h1><p>Maximum size is {} bytes</p>",
+                state.server_config.max_content_size
+            )),
+        ));
+    }
     match db::create_snippet(&state.db, &form.name, &form.content) {
         Ok(snippet) => Ok(Redirect::to(&format!("/s/{}", snippet.short_id))),
         Err(_) => Err((
@@ -167,6 +203,14 @@ async fn api_create_snippet(
     State(state): State<AppState>,
     Json(body): Json<ApiCreateSnippet>,
 ) -> Result<(StatusCode, Json<Snippet>), (StatusCode, Json<serde_json::Value>)> {
+    if body.content.len() > state.server_config.max_content_size {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(serde_json::json!({
+                "error": format!("Content too large. Maximum size is {} bytes", state.server_config.max_content_size)
+            })),
+        ));
+    }
     match db::create_snippet(&state.db, &body.name, &body.content) {
         Ok(snippet) => Ok((StatusCode::CREATED, Json(snippet))),
         Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))),
@@ -189,6 +233,14 @@ async fn api_update_snippet(
     Path(short_id): Path<String>,
     Json(body): Json<ApiCreateSnippet>,
 ) -> Result<Json<Snippet>, (StatusCode, Json<serde_json::Value>)> {
+    if body.content.len() > state.server_config.max_content_size {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(serde_json::json!({
+                "error": format!("Content too large. Maximum size is {} bytes", state.server_config.max_content_size)
+            })),
+        ));
+    }
     match db::update_snippet_by_short_id(&state.db, &short_id, &body.name, &body.content) {
         Ok(Some(snippet)) => Ok(Json(snippet)),
         Ok(None) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Snippet not found"})))),
@@ -311,6 +363,8 @@ pub async fn run(host: String, port: u16) {
         let names: Vec<&str> = server_config.auth_endpoints.iter().map(|s| s.as_str()).collect();
         println!("Auth: enabled for endpoints: {}", names.join(", "));
     }
+
+    println!("Max content size: {} bytes", server_config.max_content_size);
 
     let state = AppState {
         db: db::init_db().expect("Failed to initialize database"),

@@ -12,19 +12,11 @@ Minimal code sharing
 - Interactive TUI with authenticated access for snippet management
 - Minimal, fast, and low memory consumption
 
-## Demo
-
-Try it out at [sipp.so](https://sipp.so) or install and use the TUI
-
-```bash
-sipp -r https://sipp.so
-```
-
 ## Quickstart
 
-**1. Installo**
+**1. Install**
 
-Install the binary from Crates.io
+Install via the [releases](https://github.com/stevedylandev/sipp/releases) page, or directly with `cargo`
 
 ```bash
 cargo install sipp-so
@@ -56,19 +48,36 @@ sipp path/to/file.rs
 sipp
 ```
 
+## Demo Instance
+
+A small instance running at [sipp.so](https://sipp.so) that can be used for testing and demo purposes.
+
+```bash
+sipp -r https://sipp.so
+```
+
+>[!WARNING]
+>All snippets created here are public and might be deleted at any time; host your own instance with your own API key for personal use!
+
 ## Install
 
 Sipp can be installed several ways
 
+### Releases
+
+Visit the [releases](https://github.com/stevedylandev/sipp/releases) page and install through cURL script and other methods.
+
+### Homebrew
+
+```
+brew install stevedylandev/tap/sipp-so
+```
+
 ### Cargo
-Install with Cargo directly 
 
 ```bash
 cargo install sipp-so
 ```
-
-### GitHub Releases
-Visit the [releases](https://github.com/stevedylandev/sipp/releases) page and download one of the prebuilt binaries
 
 ## Usage
 
@@ -229,7 +238,7 @@ docker run -p 3000:3000 -e SIPP_API_KEY=your-secret-key -v sipp-data:/data sipp
 
 ### Railway
 
-1. Connect your repository to [Railway](https://railway.app)
+1. Fork this repo and connect your fork to [Railway](https://railway.app)
 2. Set the environment variables `SIPP_API_KEY` and optionally `SIPP_AUTH_ENDPOINTS`
 3. Add a [volume](https://docs.railway.com/guides/volumes) to your service and mount it at `/data`
 4. Set `SIPP_DB_PATH` to `/data/sipp.sqlite` so the database persists across deploys

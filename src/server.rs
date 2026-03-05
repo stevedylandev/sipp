@@ -63,6 +63,10 @@ struct AppState {
 struct IndexTemplate;
 
 #[derive(Template)]
+#[template(path = "admin.html")]
+struct AdminTemplate;
+
+#[derive(Template)]
 #[template(path = "snippet.html")]
 struct SnippetTemplate {
     name: String,
@@ -78,6 +82,10 @@ struct CreateSnippetForm {
 
 async fn index() -> WebTemplate<IndexTemplate> {
     WebTemplate(IndexTemplate)
+}
+
+async fn admin() -> WebTemplate<AdminTemplate> {
+    WebTemplate(AdminTemplate)
 }
 
 fn is_cli_user_agent(headers: &HeaderMap) -> bool {
@@ -376,6 +384,7 @@ pub async fn run(host: String, port: u16) {
 
     let app = Router::new()
         .route("/", get(index))
+        .route("/admin", get(admin))
         .route("/s/{short_id}", get(view_snippet))
         .route("/snippets", post(create_snippet))
         .merge(api_routes)

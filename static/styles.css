@@ -76,6 +76,13 @@ body {
 	padding: 4px;
 }
 
+#authForm input {
+	background: #121113;
+	color: #ffffff;
+	border: 1px solid white;
+	padding: 4px;
+}
+
 textarea {
 	background: #121113;
 	color: #ffffff;
@@ -119,6 +126,30 @@ a {
 		padding: 1rem;
 		gap: 1rem;
 	}
+}
+
+#snippetList {
+	flex-direction: column;
+	gap: 0;
+}
+
+.snippet-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px;
+	border: 1px solid white;
+	margin-top: -1px;
+	text-decoration: none;
+}
+
+.snippet-item:hover {
+	background: #1e1d1f;
+}
+
+.snippet-id {
+	color: #878787;
+	font-size: 13px;
 }
 
 @font-face {

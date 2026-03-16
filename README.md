@@ -2,7 +2,7 @@
 
 Minimal code sharing
 
-![demo](https://files.stevedylan.dev/sipp-demo.gif)
+https://github.com/user-attachments/assets/cadafb70-f796-456d-bfd9-e88704e7132c
 
 ## Features
 

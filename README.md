@@ -2,6 +2,9 @@
 
 Minimal code sharing
 
+>[!NOTE]
+>Sipp is now part of [Andromeda](https://github.com/stevedylandev/andromeda)
+
 https://github.com/user-attachments/assets/cadafb70-f796-456d-bfd9-e88704e7132c
 
 ## Features
